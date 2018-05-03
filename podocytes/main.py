@@ -5,4 +5,8 @@ from skimage import io
 def main():
     fin, fout = sys.argv[1:]
     image = lifio.read_image_series(fin)
-    io.imsave(image, fout)
+    io.imsave(fout, image)
+
+
+if __name__ == '__main__':
+    main()
