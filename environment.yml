@@ -1,0 +1,8 @@
+name: podo
+dependencies:
+- python=3.6
+- numpy
+- scikit-image
+- pip:
+  - javabridge==1.0.15
+  - python-bioformats
