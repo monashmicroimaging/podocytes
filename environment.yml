@@ -6,5 +6,5 @@ dependencies:
 - numpy
 - scikit-image
 - pip:
-  - javabridge==1.0.15
+  - javabridge
   - python-bioformats
