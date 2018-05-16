@@ -19,8 +19,9 @@ from skimage.measure import label, regionprops
 from skimage.feature import blob_dog
 
 # Fix from http://chriskiehl.com/article/packaging-gooey-with-pyinstaller/
-nonbuffered_stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
-sys.stdout = nonbuffered_stdout
+# Commented out because on py3.6 I get the error "can't have unbuffered TextIO"
+# nonbuffered_stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
+# sys.stdout = nonbuffered_stdout
 
 
 __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
