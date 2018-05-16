@@ -3,6 +3,7 @@ channels:
 - conda-forge
 dependencies:
 - python=3.6
+- python.app
 - numpy
 - pandas
 - cython
@@ -10,3 +11,4 @@ dependencies:
   - javabridge
   - python-bioformats
   - git+https://github.com/scikit-image/scikit-image
+  - git+https://github.com/chriskiehl/Gooey
