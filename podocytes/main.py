@@ -2,6 +2,7 @@ import os
 import sys
 
 import numpy as np
+import pandas as pd
 import matplotlib as mpl
 mpl.use('wxagg')
 from skimage import io
@@ -35,25 +36,69 @@ def main():
                         widget='MultiFileChooser', nargs='+')
     parser.add_argument('output_folder', help='Output location',
                         widget='DirChooser')
+    parser.add_argument('Glomeruli channel number',
+                        help="Glomeruli fluorescence image channel")
+    parser.add_argument('Podocyte channel number',
+                        help="Podocyte fluorescence image channel")
+    parser.add_argument('Minimum glomerular diameter (microns)',
+                        help="Minimum glomerular diameter (microns)")
+    parser.add_argument('Maximum glomerular diameter (microns)',
+                        help="Maximum glomerular diameter (microns)")
     args = parser.parse_args()
+    import pdb; pdb.set_trace()
     lifio.start()
     print('hooray!')
+    summary_statistics = pd.DataFrame()
+    detailed_statistics = pd.DataFrame()
+    for filename in input_files:
+        image_series = lifio.series_iterator(filename)
+        names, _, resolutions = lifio.metadata(filename)
+        for image_series_number, image in enumerate(image_series):
+            voxel_dimensions = resolutions[image_series_number]
+            results = process_image(image,
+                                    voxel_dimensions,
+                                    CHANNEL_GLOMERULI,
+                                    CHANNEL_PODOCYTES,
+                                    GLOMERULUS_DIAMETER_MINIMUM,
+                                    GLOMERULUS_DIAMETER_MAXIMUM)
+            results["image_series_number"] = image_series_number
+            results["image_series_name"] = names[image_series_number]
+            results["image_filename"] = filename
+            detailed_statistics = detailed_statistics.append(df_results)
+            # Write results to file as you go
+            detailed_statistics.to_csv(os.path.join(output_folder, "Podocyte_detailed_statistics.csv"))
+    # Optional creation of summary statistics
+    summary_columns = ["image_filename",
+                       "image_series_name",
+                       "image_series_number",
+                       "glomeruli_label_number",
+                       "glomeruli_voxel_number",
+                       "glomeruli_volume",
+                       "glomeruli_equivalent_diameter_voxels",
+                       "glomeruli_centroid",
+                       "avg_podocyte_voxel_number",
+                       "avg_podocyte_volume",
+                       "avg_podocyte_equivalent_diameter_voxels",
+                       "avg_podocyte_eccentricity",
+                       "avg_podocyte_major_axis_length",
+                       "avg_podocyte_minor_axis_length",
+                       "avg_podocyte_mean_intensity",
+                       "avg_podocyte_max_intensity",
+                       "avg_podocyte_min_intensity"]
+    summary_statistics = detailed_statistics[summary_columns].drop_duplicates()
+    summary_statistics.to_csv(os.path.join(output_folder, "Podocyte_summary_statistics.csv"))
     lifio.done()
 
 
-def process_image(input_image, CHANNEL_GLOMERULI, CHANNEL_PODOCYTES,
-                  GLOMERULUS_DIAMETER_MINIMUM, GLOMERULUS_DIAMETER_MAXIMUM,
-                  PIXEL_SIZE_X, PIXEL_SIZE_Y, PIXEL_SIZE_Z):
+def process_image(input_image, voxel_dimensions,
+                  CHANNEL_GLOMERULI, CHANNEL_PODOCYTES,
+                  GLOMERULUS_DIAMETER_MINIMUM, GLOMERULUS_DIAMETER_MAXIMUM):
     """Process single image volume."""
     glomeruli_view = input_image[:, CHANNEL_GLOMERULI, :, :]
     podocytes_view = input_image[:, CHANNEL_PODOCYTES, :, :]
-    ndims = glomeruli_view.ndim  # number of spatial dimensions
     # Denoise images with small gaussian blur
-    voxel_volume = PIXEL_SIZE_X * PIXEL_SIZE_Y * PIXEL_SIZE_Z
-    ratio_x = 1.  # ratio of voxel dimensions, with respect to x dimension.
-    ratio_y = PIXEL_SIZE_X/PIXEL_SIZE_Y
-    ratio_z = PIXEL_SIZE_X/PIXEL_SIZE_Z
-    sigma = [ratio_x, ratio_y, ratio_z]  # usually sigma = [1., 1., 0.5]
+    voxel_volume = np.prod(voxel_dimensions)
+    sigma = np.divide(voxel_dimensions[-1], voxel_dimensions) # non-isotropic
     glomeruli_view = gaussian(glomeruli_view, sigma=sigma)
     podocytes_view = gaussian(podocytes_view, sigma=sigma)
     # Find the glomeruli
@@ -63,22 +108,41 @@ def process_image(input_image, CHANNEL_GLOMERULI, CHANNEL_PODOCYTES,
                                        GLOMERULUS_DIAMETER_MINIMUM,
                                        GLOMERULUS_DIAMETER_MAXIMUM)
     for glom in glomeruli_regions:
-        glom_volume_in_voxels = glom.filled_area
-        glom_volume_realspace = voxel_volume * glom_volume_in_voxels
-        podocyte_regions = find_podocytes(podocytes_view, glom, )
+        df = pd.DataFrame()
+        podocyte_regions = find_podocytes(podocytes_view, glom)
         for pod in podocyte_regions:
-            # Get interesting statistics about the data & output as csv
-            podocyte_volume_in_voxels = pod.area
-            podocyte_volume_realspace = voxel_volume * podocyte_volume_in_voxels
-            #pod.centroid
-            #pod.weighted_centroid  # weighted_centroid : array, Centroid coordinate tuple (row, col) weighted with intensity image.
-            #pod.eccentricity
-            #pod.equivalent_diameter  # ?
-            #pod.max_intensity
-            #pod.mean_intensity
-            #pod.min_intensity
-            #pod.major_axis_length
-            #pod.minor_axis_length
+            # Add interesting statistics to the dataframe
+            contents = {"glomeruli_label_number": glom.label,
+                        "glomeruli_voxel_number": glom.filled_area,
+                        "glomeruli_volume": (glom.filled_area * voxel_volume),
+                        "glomeruli_equivalent_diameter_voxels":
+                            glom.equivalent_diameter,
+                        "glomeruli_centroid": glom.centroid,
+                        "podocyte_label_number": pod.label,
+                        "podocyte_voxel_number": pod.area,
+                        "podocyte_volume": (pod.area * voxel_volume),
+                        "podocyte_equivalent_diameter_voxels":
+                            pod.equivalent_diameter,
+                        "podocyte_centroid": pod.centroid,
+                        "podocyte_eccentricity": pod.eccentricity,
+                        "podocyte_major_axis_length": pod.major_axis_length,
+                        "podocyte_minor_axis_length": pod.minor_axis_length,
+                        "podocyte_mean_intensity": pod.mean_intensity,
+                        "podocyte_max_intensity": pod.max_intensity,
+                        "podocyte_min_intensity": pod.min_intensity}
+            # Add individual podocyte statistics to dataframe
+            df = df.append(contents, ignore_index=True)
+        # Add summary statistics (average of all podocytes in glomerulus)
+        df["avg_podocyte_voxel_number"] = np.mean(df["podocyte_voxel_number"])
+        df["avg_podocyte_volume"] = np.mean(df["podocyte_volume"])
+        df["avg_podocyte_equivalent_diameter_voxels"] = np.mean(df["podocyte_equivalent_diameter_voxels"])
+        df["avg_podocyte_eccentricity"] = np.mean(df["podocyte_eccentricity"])
+        df["avg_podocyte_major_axis_length"] = np.mean(df["podocyte_major_axis_length"])
+        df["avg_podocyte_minor_axis_length"] = np.mean(df["podocyte_minor_axis_length"])
+        df["avg_podocyte_mean_intensity"] = np.mean(df["podocyte_mean_intensity"])
+        df["avg_podocyte_max_intensity"] = np.mean(df["podocyte_max_intensity"])
+        df["avg_podocyte_min_intensity"] = np.mean(df["podocyte_min_intensity"])
+        return df
 
 
 def find_glomeruli(glomeruli_image, threshold, min_diameter, max_diameter):
@@ -107,15 +171,53 @@ def find_podocytes(podocyte_image, glomeruli_region,
     return regions
 
 
-def crop_region_of_interest(image, bbox, margin=0):
-    """Return cropped region of interest, with optional mean border padding."""
+def crop_region_of_interest(image, bbox, margin=0, pad_mode='mean'):
+    """Return cropped region of interest, with border padding.
+
+    Parameters
+    ----------
+    image : (N, M) ndarray
+        The input image.
+    bbox : tuple
+        Bounding box coordinates as tuple.
+        Returned from scikit-image regionprops bbox attribute. Format is:
+        3D example (min_pln, min_row, min_col, max_pln, max_row, max_col)
+        2D example (min_row, min_col, max_row, max_col)
+        Pixels belonging to the bounding box are in the half-open interval.
+    margin : int, optional
+        How many pixels to increase the size of the bounding box by.
+        If this margin exceeds the input image array bounds,
+        then the output image is padded.
+    pad_mode : string, optional
+        Type of border padding to use. Is either 'mean' (default) or 'zeros'.
+    Returns
+    -------
+    roi_image : (N, M) ndarray
+        The cropped output array.
+    """
     ndims = image.ndim
-    image_max_size = [np.size(image, dim) for dim in range(ndims)]
-    min_coords = [bbox[dim] - margin for dim in range(ndims)]
-    max_coords = [bbox[ndims + dim] + margin for dim in range(ndims)]
-    # use mean intensity padding at borders if array out of bounds
-    # changing the approach here
-    #return image_roi
+    max_image_size = np.array([np.size(image, dim) for dim in range(ndims)])
+    bbox_min_plus_margin = np.array([coord - margin for coord in bbox[:ndims]])
+    bbox_max_plus_margin = np.array([coord + margin for coord in bbox[ndims:]])
+    image_min_coords = bbox_min_plus_margin.clip(min=0)
+    image_max_coords = bbox_max_plus_margin.clip(max=max_image_size)
+    max_roi_size = np.array([abs(bbox_max_plus_margin[dim] -
+                                 bbox_min_plus_margin[dim])
+                             for dim in range(ndims)])
+    roi_min_coord = abs(image_min_coords - bbox_min_plus_margin)
+    roi_max_coord = max_roi_size - abs(bbox_max_plus_margin - image_max_coords)
+    image_slicer = tuple(slice(image_min_coords[dim], image_max_coords[dim], 1)
+                         for dim in range(ndims))
+    roi_slicer = tuple(slice(roi_min_coord[dim], roi_max_coord[dim], 1)
+                       for dim in range(ndims))
+    if pad_mode == 'zeros':
+        roi_image = np.zeros(max_roi_size)
+    elif pad_mode == 'mean':
+        roi_image = np.ones(max_roi_size) * np.mean(image[image_slicer])
+    else:
+        raise ValueError("'pad_mode' keyword argument unrecognized.")
+    roi_image[roi_slicer] = image[image_slicer]
+    return roi_image
 
 
 def blob_dog_image(blobs, image_shape):
