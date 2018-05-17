@@ -1,4 +1,6 @@
 # -*- mode: python -*-
+spec_root = os.path.abspath(SPECPATH)
+
 import gooey
 gooey_root = os.path.dirname(gooey.__file__)
 gooey_languages = Tree(os.path.join(gooey_root, 'languages'),
@@ -8,7 +10,7 @@ gooey_images = Tree(os.path.join(gooey_root, 'images'), prefix='gooey/images')
 block_cipher = None
 
 a = Analysis(['bin/launch-gui.py'],
-             pathex=['/Users/jni/projects/podocytes'],
+             pathex=[spec_root],  # add the path where the spec file is located
              binaries=[],
              datas=[('podocytes/app-images/*', 'podocytes/app-images')],
              hiddenimports=[],
