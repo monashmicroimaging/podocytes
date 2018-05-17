@@ -100,12 +100,16 @@ def parse_xml_metadata(xml_string, array_order=DEFAULT_DIM_ORDER):
     resolutions : list of tuple of float
         The resolution of each series in the order given by
         `array_order`. Time and channel dimensions are ignored.
+    units : list of tuple of string
+        The units for the values contained by 'resolutions', in the order
+        given by 'array_order'. Time and channel dimensions are ignored.
     """
     array_order = array_order.upper()
-    names, sizes, resolutions = [], [], []
+    names, sizes, resolutions, units = [], [], [], []
     spatial_array_order = [c for c in array_order if c in 'XYZ']
     size_tags = ['Size' + c for c in array_order]
     res_tags = ['PhysicalSize' + c for c in spatial_array_order]
+    unit_tags = ['PhysicalSize' + c + 'Unit' for c in spatial_array_order]
     metadata_root = et.ElementTree.fromstring(xml_string)
     for child in metadata_root:
         if child.tag.endswith('Image'):
@@ -116,7 +120,8 @@ def parse_xml_metadata(xml_string, array_order=DEFAULT_DIM_ORDER):
                     sizes.append(tuple([int(att[t]) for t in size_tags]))
                     resolutions.append(tuple([float(att[t])
                                               for t in res_tags]))
-    return names, sizes, resolutions
+                    units.append(tuple(att[t] for t in unit_tags))
+    return names, sizes, resolutions, units
 
 
 def metadata(filename, array_order=DEFAULT_DIM_ORDER):
@@ -261,7 +266,7 @@ def read_image_series(filelike, series_id=0, t=None, z=None, c=None,
     series_id : int, optional
         Load this series from the image file.
     t : int or list of int, optional
-        Load this/these timepoint/s only from the image file. If 
+        Load this/these timepoint/s only from the image file. If
         `None`, load all timepoints.
     z : int or list of int, optional
         Load this/these z-plane/s only from the image file. If `None`,
