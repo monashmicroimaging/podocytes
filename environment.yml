@@ -3,8 +3,12 @@ channels:
 - conda-forge
 dependencies:
 - python=3.6
+- python.app
 - numpy
+- matplotlib
 - scikit-image
+- pyinstaller
 - pip:
+  - git+https://github.com/chriskiehl/Gooey
   - javabridge
   - python-bioformats
