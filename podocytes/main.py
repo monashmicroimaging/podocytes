@@ -73,7 +73,7 @@ def main():
         for f in files:
             if f.endswith('.lif'):
                 filename = os.path.join(root, f)
-                image_series = lifio.series_iterator(filename)
+                image_series = lifio.series_iterator(filename, desired_order='TZYXC')
                 names, _, resolutions = lifio.metadata(filename)
                 for image_series_number, image in enumerate(image_series):
                     voxel_dimensions = resolutions[image_series_number]
@@ -103,9 +103,11 @@ def main():
 def process_image(input_image, voxel_dimensions,
                   channel_glomeruli, channel_podocytes,
                   glomerulus_diameter_minimum, glomerulus_diameter_maximum):
-    '''Process single image volume.'''
-    glomeruli_view = input_image[:, channel_glomeruli, :, :]
-    podocytes_view = input_image[:, channel_podocytes, :, :]
+    """Process single image volume."""
+    # Expect dimension order TZYXC (time, z-plane, row, column, channel)
+    # Assume that there is only one timepoint in these datasets
+    glomeruli_view = input_image[0, :, :, :, channel_glomeruli]  # assume t=0
+    podocytes_view = input_image[0, :, :, :, channel_podocytes]  # assume t=0
     # Denoise images with small gaussian blur
     voxel_volume = np.prod(voxel_dimensions)
     sigma = np.divide(voxel_dimensions[-1], voxel_dimensions)  # non-isotropic
@@ -157,7 +159,7 @@ def process_image(input_image, voxel_dimensions,
 
 
 def find_glomeruli(glomeruli_image, threshold, min_diameter, max_diameter):
-    '''Identify glomeruli in the image volume and yield those regions.'''
+    """Identify glomeruli in the image volume and yield those regions."""
     label_image = label(glomeruli_image > threshold)
     for region in regionprops(label_image):
         if ((region.equivalent_diameter >= min_diameter) and
@@ -167,7 +169,7 @@ def find_glomeruli(glomeruli_image, threshold, min_diameter, max_diameter):
 
 def find_podocytes(podocyte_image, glomeruli_region,
                    min_sigma=1, max_sigma=4, dog_threshold=0.17):
-    '''Identify podocytes in the image volume.'''
+    """Identify podocytes in the image volume."""
     bbox = glomeruli_region.bbox  # bounding box coordinates
     cropping_margin = 10  # pixels
     centroid_offset = tuple(bbox[dim] - cropping_margin
@@ -187,7 +189,7 @@ def find_podocytes(podocyte_image, glomeruli_region,
 
 
 def crop_region_of_interest(image, bbox, margin=0, pad_mode='mean'):
-    '''Return cropped region of interest, with border padding.
+    """Return cropped region of interest, with border padding.
 
     Parameters
     ----------
@@ -209,7 +211,7 @@ def crop_region_of_interest(image, bbox, margin=0, pad_mode='mean'):
     -------
     roi_image : (N, M) ndarray
         The cropped output array.
-    '''
+    """
     ndims = image.ndim
     max_image_size = np.array([np.size(image, dim) for dim in range(ndims)])
     bbox_min_plus_margin = np.array([coord - margin for coord in bbox[:ndims]])
@@ -236,8 +238,8 @@ def crop_region_of_interest(image, bbox, margin=0, pad_mode='mean'):
 
 
 def blob_dog_image(blobs, image_shape):
-    '''Create boolean image where pixels labelled True
-      match coordinates returned from skimage blob_dog() function.'''
+    """Create boolean image where pixels labelled True
+      match coordinates returned from skimage blob_dog() function."""
     blob_map = np.zeros(image_shape).astype(np.bool)
     for blob in blobs:
         blob_map[int(blob[0]), int(blob[1]), int(blob[2])] = True
@@ -245,7 +247,7 @@ def blob_dog_image(blobs, image_shape):
 
 
 def create_summary_stats(dataframe):
-    '''Return dataframe with average podocyte statistics per glomerulus.'''
+    """Return dataframe with average podocyte statistics per glomerulus."""
     summary_columns = ['image_filename',
                        'image_series_name',
                        'image_series_number',
