@@ -7,6 +7,8 @@ dependencies:
 - numpy
 - pandas
 - cython
+- matplotlib
+- pyinstaller
 - pip:
   - javabridge
   - python-bioformats
