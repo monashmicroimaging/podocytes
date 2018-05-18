@@ -41,16 +41,16 @@ def main():
     parser.add_argument('Output_directory', widget='DirChooser', nargs='+',
                         help='Folder to save output analysis files.')
     parser.add_argument('Glomeruli_channel_number', nargs='+',
-                        help='Which fluorescence channel shows the glomeruli?',
+                        help='Fluorescence channel with glomeruli.',
                         type=int, default=1)
     parser.add_argument('Podocyte_channel_number', nargs='+',
-                        help='Which fluorescence channel shows the podocytes?',
+                        help='Fluorescence channel with podocytes.',
                         type=int, default=2)
     parser.add_argument('Minimum_glomerular_diameter', nargs='+',
-                        help='Minimum expected glomerular diameter (microns)',
+                        help='Minimum glomerular diameter (microns).',
                         type=float, default=50)
     parser.add_argument('Maximum_glomerular_diameter', nargs='+',
-                        help='Maximum expected glomerular diameter (microns)',
+                        help='Maximum glomerular diameter (microns).',
                         type=float, default=200)
     args = parser.parse_args()
     input_directory = ' '.join(args.Input_directory)
@@ -61,6 +61,7 @@ def main():
     # Initialize
     lifio.start()
     timestamp = time.strftime('%d-%b-%Y_%H:%M%p', time.localtime())
+    print(timestamp)
     output_log_filename = os.path.join(output_directory,
                                        'log_'+timestamp+'.log')
     logging.basicConfig(filename=output_log_filename, level=logging.DEBUG)
