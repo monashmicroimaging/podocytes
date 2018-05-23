@@ -184,10 +184,12 @@ def process_image(input_image, voxel_dimensions,
 def find_glomeruli(glomeruli_image, threshold, min_diameter, max_diameter):
     """Identify glomeruli in the image volume and yield those regions."""
     label_image = label(glomeruli_image > threshold)
+    regions = []
     for region in regionprops(label_image):
         if ((region.equivalent_diameter >= min_diameter) and
                 (region.equivalent_diameter <= max_diameter)):
-            yield region
+            regions.append(region)
+    return regions
 
 
 def find_podocytes(podocyte_image, glomeruli_region,
