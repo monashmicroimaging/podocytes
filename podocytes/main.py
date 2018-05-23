@@ -131,7 +131,7 @@ def process_image(input_image, voxel_dimensions,
     glomeruli_view = gaussian(glomeruli_view, sigma=sigma)
     podocytes_view = gaussian(podocytes_view, sigma=sigma)
     # Find the glomeruli
-    threshold_glomeruli = threshold_otsu(glomeruli_view)
+    threshold_glomeruli = threshold_yen(glomeruli_view)
     glomeruli_regions = find_glomeruli(glomeruli_view,
                                        threshold_glomeruli,
                                        glomerulus_diameter_minimum,
