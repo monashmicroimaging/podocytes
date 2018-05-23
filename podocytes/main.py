@@ -48,15 +48,17 @@ def main():
                         type=int, default=2)
     parser.add_argument('minimum_glomerular_diameter', nargs='+',
                         help='Minimum glomerular diameter (microns).',
-                        type=float, default=50)
+                        type=float, default=40)
     parser.add_argument('maximum_glomerular_diameter', nargs='+',
                         help='Maximum glomerular diameter (microns).',
-                        type=float, default=200)
+                        type=float, default=300)
     args = parser.parse_args()
     input_directory = ' '.join(args.input_directory)
     output_directory = ' '.join(args.output_directory)
     channel_glomeruli = args.glomeruli_channel_number[0] - 1
     channel_podocytes = args.podocyte_channel_number[0] - 1
+    arg_min_glom_diameter = args.minimum_glomerular_diameter[0]
+    arg_max_glom_diameter = args.maximum_glomerular_diameter[0]
 
     # Logging
     timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
