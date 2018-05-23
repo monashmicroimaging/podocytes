@@ -15,7 +15,7 @@ from gooey.python_bindings.gooey_decorator import Gooey as gooey
 from gooey.python_bindings.gooey_parser import GooeyParser
 
 from skimage.util import invert
-from skimage.filters import threshold_otsu, gaussian
+from skimage.filters import threshold_otsu, threshold_yen, gaussian
 from skimage.morphology import ball, watershed, binary_closing, binary_dilation
 from skimage.measure import label, regionprops
 from skimage.feature import blob_dog
@@ -58,14 +58,26 @@ def main():
     channel_glomeruli = args.Glomeruli_channel_number[0] - 1
     channel_podocytes = args.Podocyte_channel_number[0] - 1
 
-    # Initialize
-    lifio.start()
-    timestamp = time.strftime('%d-%b-%Y_%H:%M%p', time.localtime())
+    # Logging
+    timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
     print(timestamp)
-    output_log_filename = os.path.join(output_directory,
-                                       'log_'+timestamp+'.log')
-    logging.basicConfig(filename=output_log_filename, level=logging.DEBUG)
-    logging.info(timestamp)
+    log_filename = os.path.join(output_directory, f"log_podo_{timestamp}")
+    logging.basicConfig(
+        format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
+        level=logging.DEBUG,
+        handlers=[
+            logging.FileHandler(f"{log_filename}.log"),
+            logging.StreamHandler()
+        ])
+    logging.info("Podocyte automated analysis program")
+    logging.info(f"{timestamp}")
+
+    # Initialize
+    try:
+        lifio.start()
+    except:
+        logging.exception('Got exception on the main handler - lifio.start()')
+        raise
     summary_stats = pd.DataFrame()
     detailed_stats = pd.DataFrame()
 
