@@ -86,8 +86,9 @@ def main():
         for f in files:
             if f.endswith('.lif'):
                 filename = os.path.join(root, f)
+                logging.info(f"Processing file: {filename}")
                 image_series = lifio.series_iterator(filename, desired_order='TZYXC')
-                names, _, resolutions = lifio.metadata(filename)
+                names, _, resolutions, units = lifio.metadata(filename)
                 for image_series_number, image in enumerate(image_series):
                     voxel_dimensions = resolutions[image_series_number]
                     results = process_image(image,
