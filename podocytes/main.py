@@ -100,6 +100,7 @@ def main():
                     results['image_series_number'] = image_series_number
                     results['image_series_name'] = names[image_series_number]
                     results['image_filename'] = filename
+                    results['volume_units_xyz'] = str(units[image_series_number][::-1])
                     detailed_stats = detailed_stats.append(results)
                     output_filename_detailed_stats = os.path.join(
                         output_directory,
@@ -117,9 +118,11 @@ def main():
 def process_image(input_image, voxel_dimensions,
                   channel_glomeruli, channel_podocytes,
                   glomerulus_diameter_minimum, glomerulus_diameter_maximum):
-    """Process single image volume."""
-    # Expect dimension order TZYXC (time, z-plane, row, column, channel)
-    # Assume that there is only one timepoint in these datasets
+    """Process single image volume.
+
+    Expect dimension order TZYXC (time, z-plane, row, column, channel)
+    Assume that there is only one timepoint in these datasets
+    """
     glomeruli_view = input_image[0, :, :, :, channel_glomeruli]  # assume t=0
     podocytes_view = input_image[0, :, :, :, channel_podocytes]  # assume t=0
     # Denoise images with small gaussian blur
@@ -133,43 +136,49 @@ def process_image(input_image, voxel_dimensions,
                                        threshold_glomeruli,
                                        glomerulus_diameter_minimum,
                                        glomerulus_diameter_maximum)
+    logging.info(f"{len(glomeruli_regions)} glomeruli identified.")
+    df_image = pd.DataFrame()
+    glom_index = 0  # since glom.label is not always sequential
     for glom in glomeruli_regions:
         df = pd.DataFrame()
         podocyte_regions, centroid_offset = find_podocytes(podocytes_view, glom)
         for pod in podocyte_regions:
             real_podocyte_centroid = tuple(pod.centroid[dim] +
                                            centroid_offset[dim]
-                                           for dim in podocytes_view.ndim)
+                                           for dim in range(podocytes_view.ndim))
             # Add interesting statistics to the dataframe
-            contents = {'glomeruli_label_number': glom.label,
+            contents = {'glomeruli_index': glom_index,
+                        'glomeruli_label_number': glom.label,
                         'glomeruli_voxel_number': glom.filled_area,
                         'glomeruli_volume': (glom.filled_area * voxel_volume),
                         'glomeruli_equiv_diam_pixels': glom.equivalent_diameter,
-                        'glomeruli_centroid': glom.centroid,
+                        'glomeruli_centroid_x': glom.centroid[2],
+                        'glomeruli_centroid_y': glom.centroid[1],
+                        'glomeruli_centroid_z': glom.centroid[0],
                         'podocyte_label_number': pod.label,
                         'podocyte_voxel_number': pod.area,
                         'podocyte_volume': (pod.area * voxel_volume),
                         'podocyte_equiv_diam_pixels': pod.equivalent_diameter,
-                        'podocyte_centroid': real_podocyte_centroid,
-                        'podocyte_eccentricity': pod.eccentricity,
-                        'podocyte_major_axis_length': pod.major_axis_length,
-                        'podocyte_minor_axis_length': pod.minor_axis_length,
+                        'podocyte_centroid_x': real_podocyte_centroid[2],
+                        'podocyte_centroid_y': real_podocyte_centroid[1],
+                        'podocyte_centroid_z': real_podocyte_centroid[0],
                         'podocyte_mean_intensity': pod.mean_intensity,
                         'podocyte_max_intensity': pod.max_intensity,
                         'podocyte_min_intensity': pod.min_intensity}
             # Add individual podocyte statistics to dataframe
             df = df.append(contents, ignore_index=True)
         # Add summary statistics (average of all podocytes in glomerulus)
+        df['glomeruli_index'] = glom_index
+        df['number_of_podocytes'] = len(df)
         df['avg_podocyte_voxel_number'] = np.mean(df['podocyte_voxel_number'])
         df['avg_podocyte_volume'] = np.mean(df['podocyte_volume'])
         df['avg_podocyte_equiv_diam_pixels'] = np.mean(df['podocyte_equiv_diam_pixels'])
-        df['avg_podocyte_eccentricity'] = np.mean(df['podocyte_eccentricity'])
-        df['avg_podocyte_major_axis_length'] = np.mean(df['podocyte_major_axis_length'])
-        df['avg_podocyte_minor_axis_length'] = np.mean(df['podocyte_minor_axis_length'])
         df['avg_podocyte_mean_intensity'] = np.mean(df['podocyte_mean_intensity'])
         df['avg_podocyte_max_intensity'] = np.mean(df['podocyte_max_intensity'])
         df['avg_podocyte_min_intensity'] = np.mean(df['podocyte_min_intensity'])
-        return df
+        glom_index += 1
+        df_image = df_image.append(df, ignore_index=True)
+    return df_image
 
 
 def find_glomeruli(glomeruli_image, threshold, min_diameter, max_diameter):
@@ -265,17 +274,18 @@ def create_summary_stats(dataframe):
     summary_columns = ['image_filename',
                        'image_series_name',
                        'image_series_number',
+                       'volume_units_xyz',
+                       'glomeruli_index',
                        'glomeruli_label_number',
                        'glomeruli_voxel_number',
                        'glomeruli_volume',
-                       'glomeruli_equivalent_diameter_voxels',
-                       'glomeruli_centroid',
+                       'glomeruli_equiv_diam_pixels',
+                       'glomeruli_centroid_x',
+                       'glomeruli_centroid_y',
+                       'glomeruli_centroid_z',
+                       'number_of_podocytes',
                        'avg_podocyte_voxel_number',
                        'avg_podocyte_volume',
-                       'avg_podocyte_equivalent_diameter_voxels',
-                       'avg_podocyte_eccentricity',
-                       'avg_podocyte_major_axis_length',
-                       'avg_podocyte_minor_axis_length',
                        'avg_podocyte_mean_intensity',
                        'avg_podocyte_max_intensity',
                        'avg_podocyte_min_intensity']
