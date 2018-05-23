@@ -36,27 +36,27 @@ __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
 def main():
     # Get user input
     parser = GooeyParser(prog='Podocyte Profiler', description=__DESCR__)
-    parser.add_argument('Input_directory', widget='DirChooser', nargs='+',
+    parser.add_argument('input_directory', widget='DirChooser', nargs='+',
                         help='Folder containing files for processing.')
-    parser.add_argument('Output_directory', widget='DirChooser', nargs='+',
+    parser.add_argument('output_directory', widget='DirChooser', nargs='+',
                         help='Folder to save output analysis files.')
-    parser.add_argument('Glomeruli_channel_number', nargs='+',
+    parser.add_argument('glomeruli_channel_number', nargs='+',
                         help='Fluorescence channel with glomeruli.',
                         type=int, default=1)
-    parser.add_argument('Podocyte_channel_number', nargs='+',
+    parser.add_argument('podocyte_channel_number', nargs='+',
                         help='Fluorescence channel with podocytes.',
                         type=int, default=2)
-    parser.add_argument('Minimum_glomerular_diameter', nargs='+',
+    parser.add_argument('minimum_glomerular_diameter', nargs='+',
                         help='Minimum glomerular diameter (microns).',
                         type=float, default=50)
-    parser.add_argument('Maximum_glomerular_diameter', nargs='+',
+    parser.add_argument('maximum_glomerular_diameter', nargs='+',
                         help='Maximum glomerular diameter (microns).',
                         type=float, default=200)
     args = parser.parse_args()
-    input_directory = ' '.join(args.Input_directory)
-    output_directory = ' '.join(args.Output_directory)
-    channel_glomeruli = args.Glomeruli_channel_number[0] - 1
-    channel_podocytes = args.Podocyte_channel_number[0] - 1
+    input_directory = ' '.join(args.input_directory)
+    output_directory = ' '.join(args.output_directory)
+    channel_glomeruli = args.glomeruli_channel_number[0] - 1
+    channel_podocytes = args.podocyte_channel_number[0] - 1
 
     # Logging
     timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
@@ -87,31 +87,43 @@ def main():
             if f.endswith('.lif'):
                 filename = os.path.join(root, f)
                 logging.info(f"Processing file: {filename}")
-                image_series = lifio.series_iterator(filename, desired_order='TZYXC')
+                image_series = lifio.series_iterator(
+                    filename, desired_order='TZYXC'
+                    )
                 names, _, resolutions, units = lifio.metadata(filename)
                 for image_series_number, image in enumerate(image_series):
-                    voxel_dimensions = resolutions[image_series_number]
+                    voxel_dims = resolutions[image_series_number]
+                    min_glom_diameter = arg_min_glom_diameter / voxel_dims[1]
+                    max_glom_diameter = arg_max_glom_diameter / voxel_dims[1]
                     results = process_image(image,
-                                            voxel_dimensions,
+                                            voxel_dims,
                                             channel_glomeruli,
                                             channel_podocytes,
-                                            args.Minimum_glomerular_diameter[0],
-                                            args.Maximum_glomerular_diameter[0])
-                    results['image_series_number'] = image_series_number
-                    results['image_series_name'] = names[image_series_number]
-                    results['image_filename'] = filename
-                    results['volume_units_xyz'] = str(units[image_series_number][::-1])
-                    detailed_stats = detailed_stats.append(results)
-                    output_filename_detailed_stats = os.path.join(
-                        output_directory,
-                        'Podocyte_detailed_stats_'+timestamp+'.csv')
-                    detailed_stats.to_csv(output_filename_detailed_stats)
+                                            min_glom_diameter,
+                                            max_glom_diameter)
+                    if results is not None:
+                        results['image_series_number'] = image_series_number
+                        results['image_series_name'] = names[image_series_number]
+                        results['image_filename'] = filename
+                        results['volume_units_xyz'] = str(
+                            units[image_series_number][::-1]
+                            )
+                        detailed_stats = detailed_stats.append(
+                            results, ignore_index=True)
+                        output_filename_detailed_stats = os.path.join(
+                            output_directory,
+                            'Podocyte_detailed_stats_'+timestamp+'.csv'
+                            )
+                        detailed_stats.to_csv(output_filename_detailed_stats)
     # Summarize output and write to file
-    summary_stats = create_summary_stats(detailed_stats)
-    output_filename_summary_stats = os.path.join(
-        output_directory,
-        'Podocyte_summary_stats_'+timestamp+'.csv')
-    summary_stats.to_csv(output_filename_summary_stats)
+    if detailed_stats is not None:
+        summary_stats = create_summary_stats(detailed_stats)
+        output_filename_summary_stats = os.path.join(
+            output_directory,
+            'Podocyte_summary_stats_'+timestamp+'.csv')
+        summary_stats.to_csv(output_filename_summary_stats)
+        logging.info(f'Saved statistics to file: {output_filename_summary_stats}')
+    logging.info("Program complete.")
     lifio.done()
 
 
@@ -167,17 +179,18 @@ def process_image(input_image, voxel_dimensions,
                         'podocyte_min_intensity': pod.min_intensity}
             # Add individual podocyte statistics to dataframe
             df = df.append(contents, ignore_index=True)
-        # Add summary statistics (average of all podocytes in glomerulus)
-        df['glomeruli_index'] = glom_index
-        df['number_of_podocytes'] = len(df)
-        df['avg_podocyte_voxel_number'] = np.mean(df['podocyte_voxel_number'])
-        df['avg_podocyte_volume'] = np.mean(df['podocyte_volume'])
-        df['avg_podocyte_equiv_diam_pixels'] = np.mean(df['podocyte_equiv_diam_pixels'])
-        df['avg_podocyte_mean_intensity'] = np.mean(df['podocyte_mean_intensity'])
-        df['avg_podocyte_max_intensity'] = np.mean(df['podocyte_max_intensity'])
-        df['avg_podocyte_min_intensity'] = np.mean(df['podocyte_min_intensity'])
+        if df is not None:
+            # Add summary statistics (average of all podocytes in glomerulus)
+            df['glomeruli_index'] = glom_index
+            df['number_of_podocytes'] = len(df)
+            df['avg_podocyte_voxel_number'] = np.mean(df['podocyte_voxel_number'])
+            df['avg_podocyte_volume'] = np.mean(df['podocyte_volume'])
+            df['avg_podocyte_equiv_diam_pixels'] = np.mean(df['podocyte_equiv_diam_pixels'])
+            df['avg_podocyte_mean_intensity'] = np.mean(df['podocyte_mean_intensity'])
+            df['avg_podocyte_max_intensity'] = np.mean(df['podocyte_max_intensity'])
+            df['avg_podocyte_min_intensity'] = np.mean(df['podocyte_min_intensity'])
+            df_image = df_image.append(df, ignore_index=True)
         glom_index += 1
-        df_image = df_image.append(df, ignore_index=True)
     return df_image
 
 
