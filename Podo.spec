@@ -15,8 +15,6 @@ block_cipher = None
 binaries = []
 
 datas = []
-datas += PyInstaller.utils.hooks.collect_data_files("bioformats")
-datas += PyInstaller.utils.hooks.collect_data_files("javabridge")
 datas += PyInstaller.utils.hooks.collect_data_files("skimage.io._plugins")
 datas += [('podocytes/app-images/*', 'podocytes/app-images')]
 
