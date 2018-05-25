@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib as mpl
 mpl.use('wxagg')
 from skimage import io
-from . import lifio
+import pims
 import matplotlib.pyplot as plt
 
 from gooey.python_bindings.gooey_decorator import Gooey as gooey
@@ -26,14 +26,18 @@ __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
        navigation='TABBED')
 def main():
     parser = GooeyParser(prog='Podocyte Profiler', description=__DESCR__)
-    parser.add_argument('input_files', help='Files to process',
-                        widget='MultiFileChooser', nargs='+')
+    parser.add_argument('input_file', help='Files to process',
+                        widget='FileChooser', nargs='+')
     parser.add_argument('output_folder', help='Output location',
                         widget='DirChooser')
     args = parser.parse_args()
-    lifio.start()
+    filename = ' '.join(args.input_file)
+    images = pims.open(filename)
+    images.bundle_axes = 'zyxc'  # must specify which dimensionns for frames
+    metadata = images.metadata
+    n_image_series = metadata.ImageCount()
     print('hooray!')
-    lifio.done()
+
 
 
 if __name__ == '__main__':
