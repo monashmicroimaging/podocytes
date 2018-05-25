@@ -5,10 +5,12 @@ dependencies:
 - python=3.6
 - python.app
 - numpy
+- pims
+- jpype1
+- pillow
+- imageio
 - matplotlib
 - scikit-image
 - pyinstaller
 - pip:
   - git+https://github.com/chriskiehl/Gooey
-  - javabridge
-  - python-bioformats
