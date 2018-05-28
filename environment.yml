@@ -11,7 +11,8 @@ dependencies:
 - imageio
 - tifffile
 - matplotlib
-- scikit-image
 - pyinstaller
+- cython
 - pip:
+  - git+https://github.com/scikit-image/scikit-image
   - git+https://github.com/chriskiehl/Gooey
