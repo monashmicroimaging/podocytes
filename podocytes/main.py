@@ -66,7 +66,7 @@ def main():
     print(timestamp)
     log_filename = os.path.join(output_directory, f"log_podo_{timestamp}")
     logging.basicConfig(
-        format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
+        format="%(asctime)s %(message)s",
         level=logging.DEBUG,
         handlers=[
             logging.FileHandler(f"{log_filename}.log"),
@@ -91,8 +91,8 @@ def main():
                 for image_series_number in range(n_image_series):
                     images.series = image_series_number
                     images.bundle_axes = 'zyxc'
-                    logging.info(f"{input_image.metadata.ImageID(image_series_number)}")
-                    logging.info(f"{input_image.metadata.ImageName(image_series_number)}")
+                    logging.info(f"{images.metadata.ImageID(image_series_number)}")
+                    logging.info(f"{images.metadata.ImageName(image_series_number)}")
                     voxel_dims = [
                         images.metadata.PixelsPhysicalSizeZ(image_series_number),
                         images.metadata.PixelsPhysicalSizeY(image_series_number),
@@ -149,7 +149,6 @@ def process_image(input_image, voxel_dimensions,
     Expect dimension order TZYXC (time, z-plane, row, column, channel)
     Assume that there is only one timepoint in these datasets
     """
-    input_image.bundle_axes = 'zyxc'
     glomeruli_view = input_image[0][..., channel_glomeruli]  # assume t=0
     podocytes_view = input_image[0][..., channel_podocytes]  # assume t=0
     # Denoise images with small gaussian blur
