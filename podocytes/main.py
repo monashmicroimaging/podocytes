@@ -86,17 +86,17 @@ def main():
                 filename = os.path.join(root, f)
                 logging.info(f"Processing file: {filename}")
                 images = pims.open(filename)
-                images.bundle_axes = 'zyxc'  # must specify which dimensionns for frames
+                images.bundle_axes = 'zyxc'  # must specify every time!
                 n_image_series = images.metadata.ImageCount()
-                for image_series_number in range(n_image_series):
-                    images.series = image_series_number
+                for im_series_num in range(n_image_series):
+                    images.series = im_series_num
                     images.bundle_axes = 'zyxc'
-                    logging.info(f"{images.metadata.ImageID(image_series_number)}")
-                    logging.info(f"{images.metadata.ImageName(image_series_number)}")
+                    logging.info(f"{images.metadata.ImageID(im_series_num)}")
+                    logging.info(f"{images.metadata.ImageName(im_series_num)}")
                     voxel_dims = [
-                        images.metadata.PixelsPhysicalSizeZ(image_series_number),
-                        images.metadata.PixelsPhysicalSizeY(image_series_number),
-                        images.metadata.PixelsPhysicalSizeX(image_series_number)
+                        images.metadata.PixelsPhysicalSizeZ(im_series_num),
+                        images.metadata.PixelsPhysicalSizeY(im_series_num),
+                        images.metadata.PixelsPhysicalSizeX(im_series_num)
                         ] # plane, row, column order
                     min_glom_diameter = arg_min_glom_diameter / voxel_dims[1]
                     max_glom_diameter = arg_max_glom_diameter / voxel_dims[1]
@@ -107,11 +107,11 @@ def main():
                                             min_glom_diameter,
                                             max_glom_diameter)
                     if results is not None:
-                        results['image_series_number'] = images.metadata.ImageID(image_series_number)
-                        results['image_series_name'] = images.metadata.ImageName(image_series_number)
+                        results['im_series_num'] = images.metadata.ImageID(im_series_num)
+                        results['image_series_name'] = images.metadata.ImageName(im_series_num)
                         results['image_filename'] = filename
                         #results['volume_units_xyz'] = str(
-                        #    units[image_series_number][::-1]
+                        #    units[im_series_num][::-1]
                         #    )
                         detailed_stats = detailed_stats.append(
                             results, ignore_index=True)
@@ -127,17 +127,24 @@ def main():
             output_directory,
             'Podocyte_summary_stats_'+timestamp+'.csv')
         summary_stats.to_csv(output_filename_summary_stats)
-        logging.info(f'Saved statistics to file: {output_filename_summary_stats}')
+        logging.info(f'Saved statistics to file: '
+                     f'{output_filename_summary_stats}')
     time_end = time.time()
     time_delta = time_end - time_start
     minutes, seconds = divmod(time_delta, 60)
     hours, minutes = divmod(minutes, 60)
-    logging.info(f"Total runtime: {hours} hours, {minutes} minutes, {seconds} seconds.")
+    logging.info(f'Total runtime: '
+                 f'{round(hours)} hours, '
+                 f'{round(minutes)} minutes, '
+                 f'{round(seconds)} seconds.')
     total_gloms_counted = len(summary_stats)
     if total_gloms_counted > 0:
-        minutes_per_glom, seconds_per_glom = divmod(time_delta/total_gloms_counted, 60)
-        logging.info(f"Average time per glomerulus: {minutes_per_glom} minutes, {seconds_per_glom} seconds.")
-    logging.info("Program complete.")
+        minutes_per_glom, seconds_per_glom = divmod(
+            time_delta / total_gloms_counted, 60)
+        logging.info(f'Average time per glomerulus: '
+                     f'{round(minutes_per_glom)} minutes, '
+                     f'{round(seconds_per_glom)} seconds.')
+    logging.info('Program complete.')
 
 
 
@@ -194,9 +201,12 @@ def process_image(input_image, voxel_dimensions,
             # Add summary statistics (average of all podocytes in glomerulus)
             df['glomeruli_index'] = glom_index
             df['number_of_podocytes'] = len(df)
-            df['avg_podocyte_voxel_number'] = np.mean(df['podocyte_voxel_number'])
-            df['avg_podocyte_volume'] = np.mean(df['podocyte_volume'])
-            df['avg_podocyte_equiv_diam_pixels'] = np.mean(df['podocyte_equiv_diam_pixels'])
+            df['avg_podocyte_voxel_number'] = np.mean(
+                df['podocyte_voxel_number'])
+            df['avg_podocyte_volume'] = np.mean(
+                df['podocyte_volume'])
+            df['avg_podocyte_equiv_diam_pixels'] = np.mean(
+                df['podocyte_equiv_diam_pixels'])
             df['podocyte_density'] = len(df) / (glom.filled_area * voxel_volume)
             df_image = df_image.append(df, ignore_index=True)
             logging.info(f"{len(df)} podocytes found for this glomerulus.")
@@ -300,7 +310,7 @@ def create_summary_stats(dataframe):
     """Return dataframe with average podocyte statistics per glomerulus."""
     summary_columns = ['image_filename',
                        'image_series_name',
-                       'image_series_number',
+                       'im_series_num',
                        'glomeruli_index',
                        'glomeruli_label_number',
                        'glomeruli_voxel_number',
