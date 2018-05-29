@@ -61,6 +61,7 @@ def main():
     arg_max_glom_diameter = args.maximum_glomerular_diameter[0]
 
     # Logging
+    time_start = time.time()
     timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
     print(timestamp)
     log_filename = os.path.join(output_directory, f"log_podo_{timestamp}")
@@ -88,12 +89,15 @@ def main():
                 images.bundle_axes = 'zyxc'  # must specify which dimensionns for frames
                 n_image_series = images.metadata.ImageCount()
                 for image_series_number in range(n_image_series):
-                    image.series = image_series_number
-                    voxel_dims = (
-                        images.metadata.PixelsPhysicalSizez(image_series_number),
+                    images.series = image_series_number
+                    images.bundle_axes = 'zyxc'
+                    logging.info(f"{input_image.metadata.ImageID(image_series_number)}")
+                    logging.info(f"{input_image.metadata.ImageName(image_series_number)}")
+                    voxel_dims = [
+                        images.metadata.PixelsPhysicalSizeZ(image_series_number),
                         images.metadata.PixelsPhysicalSizeY(image_series_number),
                         images.metadata.PixelsPhysicalSizeX(image_series_number)
-                        ) # plane, row, column order
+                        ] # plane, row, column order
                     min_glom_diameter = arg_min_glom_diameter / voxel_dims[1]
                     max_glom_diameter = arg_max_glom_diameter / voxel_dims[1]
                     results = process_image(images,
@@ -124,6 +128,15 @@ def main():
             'Podocyte_summary_stats_'+timestamp+'.csv')
         summary_stats.to_csv(output_filename_summary_stats)
         logging.info(f'Saved statistics to file: {output_filename_summary_stats}')
+    time_end = time.time()
+    time_delta = time_end - time_start
+    minutes, seconds = divmod(time_delta, 60)
+    hours, minutes = divmod(minutes, 60)
+    logging.info(f"Total runtime: {hours} hours, {minutes} minutes, {seconds} seconds.")
+    total_gloms_counted = len(summary_stats)
+    if total_gloms_counted > 0:
+        minutes_per_glom, seconds_per_glom = divmod(time_delta/total_gloms_counted, 60)
+        logging.info(f"Average time per glomerulus: {minutes_per_glom} minutes, {seconds_per_glom} seconds.")
     logging.info("Program complete.")
 
 
@@ -136,8 +149,9 @@ def process_image(input_image, voxel_dimensions,
     Expect dimension order TZYXC (time, z-plane, row, column, channel)
     Assume that there is only one timepoint in these datasets
     """
-    glomeruli_view = input_image[0, :, :, :, channel_glomeruli]  # assume t=0
-    podocytes_view = input_image[0, :, :, :, channel_podocytes]  # assume t=0
+    input_image.bundle_axes = 'zyxc'
+    glomeruli_view = input_image[0][..., channel_glomeruli]  # assume t=0
+    podocytes_view = input_image[0][..., channel_podocytes]  # assume t=0
     # Denoise images with small gaussian blur
     voxel_volume = np.prod(voxel_dimensions)
     sigma = np.divide(voxel_dimensions[-1], voxel_dimensions)  # non-isotropic
@@ -174,10 +188,7 @@ def process_image(input_image, voxel_dimensions,
                         'podocyte_equiv_diam_pixels': pod.equivalent_diameter,
                         'podocyte_centroid_x': real_podocyte_centroid[2],
                         'podocyte_centroid_y': real_podocyte_centroid[1],
-                        'podocyte_centroid_z': real_podocyte_centroid[0],
-                        'podocyte_mean_intensity': pod.mean_intensity,
-                        'podocyte_max_intensity': pod.max_intensity,
-                        'podocyte_min_intensity': pod.min_intensity}
+                        'podocyte_centroid_z': real_podocyte_centroid[0]}
             # Add individual podocyte statistics to dataframe
             df = df.append(contents, ignore_index=True)
         if df is not None:
@@ -187,10 +198,11 @@ def process_image(input_image, voxel_dimensions,
             df['avg_podocyte_voxel_number'] = np.mean(df['podocyte_voxel_number'])
             df['avg_podocyte_volume'] = np.mean(df['podocyte_volume'])
             df['avg_podocyte_equiv_diam_pixels'] = np.mean(df['podocyte_equiv_diam_pixels'])
-            df['avg_podocyte_mean_intensity'] = np.mean(df['podocyte_mean_intensity'])
-            df['avg_podocyte_max_intensity'] = np.mean(df['podocyte_max_intensity'])
-            df['avg_podocyte_min_intensity'] = np.mean(df['podocyte_min_intensity'])
+            df['podocyte_density'] = len(df) / (glom.filled_area * voxel_volume)
             df_image = df_image.append(df, ignore_index=True)
+            logging.info(f"{len(df)} podocytes found for this glomerulus.")
+        else:
+            logging.info("Zero podocytes found in this glomerulus!")
         glom_index += 1
     return df_image
 
@@ -290,7 +302,6 @@ def create_summary_stats(dataframe):
     summary_columns = ['image_filename',
                        'image_series_name',
                        'image_series_number',
-                       'volume_units_xyz',
                        'glomeruli_index',
                        'glomeruli_label_number',
                        'glomeruli_voxel_number',
@@ -302,9 +313,7 @@ def create_summary_stats(dataframe):
                        'number_of_podocytes',
                        'avg_podocyte_voxel_number',
                        'avg_podocyte_volume',
-                       'avg_podocyte_mean_intensity',
-                       'avg_podocyte_max_intensity',
-                       'avg_podocyte_min_intensity']
+                       'podocyte_density']
     summary_dataframe = dataframe[summary_columns].drop_duplicates()
     return summary_dataframe
 
