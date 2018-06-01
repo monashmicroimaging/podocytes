@@ -114,7 +114,7 @@ def main():
                         #    units[im_series_num][::-1]
                         #    )
                         detailed_stats = detailed_stats.append(
-                            results, ignore_index=True)
+                            results, ignore_index=True, sort=False)
                         output_filename_detailed_stats = os.path.join(
                             output_directory,
                             'Podocyte_detailed_stats_'+timestamp+'.csv'
@@ -196,7 +196,7 @@ def process_image(input_image, voxel_dimensions,
                         'podocyte_centroid_y': real_podocyte_centroid[1],
                         'podocyte_centroid_z': real_podocyte_centroid[0]}
             # Add individual podocyte statistics to dataframe
-            df = df.append(contents, ignore_index=True)
+            df = df.append(contents, ignore_index=True, sort=False)
         if df is not None:
             # Add summary statistics (average of all podocytes in glomerulus)
             df['glomeruli_index'] = glom_index
@@ -208,7 +208,7 @@ def process_image(input_image, voxel_dimensions,
             df['avg_podocyte_equiv_diam_pixels'] = np.mean(
                 df['podocyte_equiv_diam_pixels'])
             df['podocyte_density'] = len(df) / (glom.filled_area * voxel_volume)
-            df_image = df_image.append(df, ignore_index=True)
+            df_image = df_image.append(df, ignore_index=True, sort=False)
             logging.info(f"{len(df)} podocytes found for this glomerulus.")
         else:
             logging.info("Zero podocytes found in this glomerulus!")
