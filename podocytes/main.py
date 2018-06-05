@@ -107,7 +107,7 @@ def main():
                                             min_glom_diameter,
                                             max_glom_diameter)
                     if results is not None:
-                        results['im_series_num'] = images.metadata.ImageID(im_series_num)
+                        results['image_series_num'] = images.metadata.ImageID(im_series_num)
                         results['image_series_name'] = images.metadata.ImageName(im_series_num)
                         results['image_filename'] = filename
                         #results['volume_units_xyz'] = str(
@@ -310,7 +310,7 @@ def create_summary_stats(dataframe):
     """Return dataframe with average podocyte statistics per glomerulus."""
     summary_columns = ['image_filename',
                        'image_series_name',
-                       'im_series_num',
+                       'image_series_num',
                        'glomeruli_index',
                        'glomeruli_label_number',
                        'glomeruli_voxel_number',
