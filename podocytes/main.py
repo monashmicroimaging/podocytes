@@ -74,6 +74,14 @@ def main():
         ])
     logging.info("Podocyte automated analysis program")
     logging.info(f"{timestamp}")
+    logging.info("========== USER INOUT ARGUMENTS ==========")
+    logging.info(f"input_directory: {input_directory}")
+    logging.info(f"output_directory: {output_directory}")
+    logging.info(f"glomeruli_channel_number: {glomeruli_channel_number}")
+    logging.info(f"podocyte_channel_number: {podocyte_channel_number}")
+    logging.info(f"minimum_glomerular_diameter: {minimum_glomerular_diameter}")
+    logging.info(f"maximum_glomerular_diameter: {maximum_glomerular_diameter}")
+    logging.info("======= END OF USER INPUT ARGUMENTS =======")
 
     # Initialize
     summary_stats = pd.DataFrame()
