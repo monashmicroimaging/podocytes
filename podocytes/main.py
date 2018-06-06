@@ -20,6 +20,8 @@ from skimage.morphology import ball, watershed, binary_closing, binary_dilation
 from skimage.measure import label, regionprops
 from skimage.feature import blob_dog
 
+import tifffile._tifffile  # imported to silence pims warning
+
 # Fix from http://chriskiehl.com/article/packaging-gooey-with-pyinstaller/
 # Commented out because on py3.6 I get the error 'can't have unbuffered TextIO'
 # nonbuffered_stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
