@@ -32,7 +32,7 @@ __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
              'fluorescence images.')
 
 
-@gooey(default_size=(640, 480),
+@gooey(default_size=(660, 640),
        image_dir=os.path.join(os.path.dirname(__file__), 'app-images'),
        navigation='TABBED')
 def main():
@@ -54,6 +54,9 @@ def main():
     parser.add_argument('maximum_glomerular_diameter', nargs='+',
                         help='Maximum glomerular diameter (microns).',
                         type=float, default=300)
+    parser.add_argument('file_extension', nargs='+',
+                        help='Extension of image file format (.tif, etc.)',
+                        type=str, default='.lif')
     args = parser.parse_args()
     input_directory = ' '.join(args.input_directory)
     output_directory = ' '.join(args.output_directory)
@@ -61,6 +64,7 @@ def main():
     channel_podocytes = args.podocyte_channel_number[0] - 1
     arg_min_glom_diameter = args.minimum_glomerular_diameter[0]
     arg_max_glom_diameter = args.maximum_glomerular_diameter[0]
+    ext = args.file_extension[0]
 
     # Logging
     time_start = time.time()
@@ -92,7 +96,7 @@ def main():
     # Get to work
     for root, _, files in os.walk(input_directory):
         for f in files:
-            if f.endswith('.lif'):
+            if f.endswith(ext):
                 filename = os.path.join(root, f)
                 logging.info(f"Processing file: {filename}")
                 images = pims.open(filename)
