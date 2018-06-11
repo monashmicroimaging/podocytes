@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 import logging
 
@@ -62,78 +61,53 @@ def main():
     output_directory = ' '.join(args.output_directory)
     channel_glomeruli = args.glomeruli_channel_number[0] - 1
     channel_podocytes = args.podocyte_channel_number[0] - 1
-    arg_min_glom_diameter = args.minimum_glomerular_diameter[0]
-    arg_max_glom_diameter = args.maximum_glomerular_diameter[0]
+    min_glom_diameter = args.minimum_glomerular_diameter[0]
+    max_glom_diameter = args.maximum_glomerular_diameter[0]
     ext = args.file_extension[0]
 
-    # Logging
-    time_start = time.time()
-    timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
-    print(timestamp)
-    log_filename = os.path.join(output_directory, f"log_podo_{timestamp}")
-    logging.basicConfig(
-        format="%(asctime)s %(message)s",
-        level=logging.DEBUG,
-        handlers=[
-            logging.FileHandler(f"{log_filename}.log"),
-            logging.StreamHandler()
-        ])
-    logging.info("Podocyte automated analysis program")
-    logging.info(f"{timestamp}")
-    logging.info("========== USER INOUT ARGUMENTS ==========")
-    logging.info(f"input_directory: {input_directory}")
-    logging.info(f"output_directory: {output_directory}")
-    logging.info(f"glomeruli_channel_number: {args.glomeruli_channel_number}")
-    logging.info(f"podocyte_channel_number: {args.podocyte_channel_number}")
-    logging.info(f"minimum_glomerular_diameter: {arg_min_glom_diameter}")
-    logging.info(f"maximum_glomerular_diameter: {arg_max_glom_diameter}")
-    logging.info("======= END OF USER INPUT ARGUMENTS =======")
-
     # Initialize
+    time_start = time.time()
+    begin_log_file(output_directory, args)
     summary_stats = pd.DataFrame()
     detailed_stats = pd.DataFrame()
 
     # Get to work
-    for root, _, files in os.walk(input_directory):
-        for f in files:
-            if f.endswith(ext):
-                filename = os.path.join(root, f)
-                logging.info(f"Processing file: {filename}")
-                images = pims.open(filename)
-                images.bundle_axes = 'zyxc'  # must specify every time!
-                n_image_series = images.metadata.ImageCount()
-                for im_series_num in range(n_image_series):
-                    images.series = im_series_num
-                    images.bundle_axes = 'zyxc'
-                    logging.info(f"{images.metadata.ImageID(im_series_num)}")
-                    logging.info(f"{images.metadata.ImageName(im_series_num)}")
-                    voxel_dims = [
-                        images.metadata.PixelsPhysicalSizeZ(im_series_num),
-                        images.metadata.PixelsPhysicalSizeY(im_series_num),
-                        images.metadata.PixelsPhysicalSizeX(im_series_num)
-                        ] # plane, row, column order
-                    min_glom_diameter = arg_min_glom_diameter / voxel_dims[1]
-                    max_glom_diameter = arg_max_glom_diameter / voxel_dims[1]
-                    results = process_image(images,
-                                            voxel_dims,
-                                            channel_glomeruli,
-                                            channel_podocytes,
-                                            min_glom_diameter,
-                                            max_glom_diameter)
-                    if results is not None:
-                        results['image_series_num'] = images.metadata.ImageID(im_series_num)
-                        results['image_series_name'] = images.metadata.ImageName(im_series_num)
-                        results['image_filename'] = filename
-                        #results['volume_units_xyz'] = str(
-                        #    units[im_series_num][::-1]
-                        #    )
-                        detailed_stats = detailed_stats.append(
-                            results, ignore_index=True, sort=False)
-                        output_filename_detailed_stats = os.path.join(
-                            output_directory,
-                            'Podocyte_detailed_stats_'+timestamp+'.csv'
-                            )
-                        detailed_stats.to_csv(output_filename_detailed_stats)
+    filelist = find_files(input_directory, ext)
+    logging.info(f"{len(filelist)} {ext} files found.")
+    for filename in filelist:
+        logging.info(f"Processing file: {filename}")
+        images = pims.open(filename)
+        for im_series_num in range(images.metadata.ImageCount()):
+            logging.info(f"{images.metadata.ImageID(im_series_num)}")
+            logging.info(f"{images.metadata.ImageName(im_series_num)}")
+            images.series = im_series_num
+            images.bundle_axes = 'zyxc'
+
+            glomeruli_labels = preprocess_glomeruli(images[0][..., channel_glomeruli])
+            glom_regions = filter_by_size(glomeruli_labels, min_glom_diameter, max_glom_diameter)
+            logging.info(f"{len(glom_regions)} glomeruli identified.")
+            if len(glom_regions) > 0:
+                podocytes_view = denoise_image(images[0][..., channel_podocytes])
+                for glom in glom_regions:
+                    podocytes_regions = count_podocytes()
+
+
+    """
+            results =
+            if results is not None:
+                results['image_series_num'] = images.metadata.ImageID(im_series_num)
+                results['image_series_name'] = images.metadata.ImageName(im_series_num)
+                results['image_filename'] = filename
+                #results['volume_units_xyz'] = str(
+                #    units[im_series_num][::-1]
+                #    )
+                detailed_stats = detailed_stats.append(
+                    results, ignore_index=True, sort=False)
+                output_filename_detailed_stats = os.path.join(
+                    output_directory,
+                    'Podocyte_detailed_stats_'+timestamp+'.csv'
+                    )
+                detailed_stats.to_csv(output_filename_detailed_stats)
     # Summarize output and write to file
     if detailed_stats is not None:
         summary_stats = create_summary_stats(detailed_stats)
@@ -159,33 +133,91 @@ def main():
                      f'{round(minutes_per_glom)} minutes, '
                      f'{round(seconds_per_glom)} seconds.')
     logging.info('Program complete.')
-
-
-
-def process_image(input_image, voxel_dimensions,
-                  channel_glomeruli, channel_podocytes,
-                  glomerulus_diameter_minimum, glomerulus_diameter_maximum):
-    """Process single image volume.
-
-    Expect dimension order TZYXC (time, z-plane, row, column, channel)
-    Assume that there is only one timepoint in these datasets
     """
-    glomeruli_view = input_image[0][..., channel_glomeruli]  # assume t=0
-    podocytes_view = input_image[0][..., channel_podocytes]  # assume t=0
-    # Denoise images with small gaussian blur
-    voxel_volume = np.prod(voxel_dimensions)
-    sigma = np.divide(voxel_dimensions[-1], voxel_dimensions)  # non-isotropic
-    glomeruli_view = gaussian(glomeruli_view, sigma=sigma)
-    podocytes_view = gaussian(podocytes_view, sigma=sigma)
-    # Find the glomeruli
-    threshold_glomeruli = threshold_yen(glomeruli_view)
-    glomeruli_regions = find_glomeruli(glomeruli_view,
-                                       threshold_glomeruli,
-                                       glomerulus_diameter_minimum,
-                                       glomerulus_diameter_maximum)
-    logging.info(f"{len(glomeruli_regions)} glomeruli identified.")
+
+
+def begin_log_file(output_directory, args):
+    """Initialize logging and begin writing log file."""
+    timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
+    print(timestamp)
+    log_filename = os.path.join(output_directory, f"log_podo_{timestamp}")
+    logging.basicConfig(
+        format="%(asctime)s %(message)s",
+        level=logging.DEBUG,
+        handlers=[
+            logging.FileHandler(f"{log_filename}.log"),
+            logging.StreamHandler()
+        ])
+    # Log user input arguments
+    input_directory = ' '.join(args.input_directory)
+    output_directory = ' '.join(args.output_directory)
+    logging.info("Podocyte automated analysis program")
+    logging.info(f"{timestamp}")
+    logging.info("========== USER INOUT ARGUMENTS ==========")
+    logging.info(f"input_directory: {input_directory}")
+    logging.info(f"output_directory: {output_directory}")
+    logging.info(f"file_extension[0]: {args.file_extension[0]}")
+    logging.info(f"glomeruli_channel_number: {args.glomeruli_channel_number}")
+    logging.info(f"podocyte_channel_number: {args.podocyte_channel_number}")
+    logging.info(f"minimum_glomerular_diameter: {args.minimum_glomerular_diameter[0]}")
+    logging.info(f"maximum_glomerular_diameter: {args.maximum_glomerular_diameter[0]}")
+    logging.info("======= END OF USER INPUT ARGUMENTS =======")
+
+
+def find_files(input_directory, ext):
+    """Recursive search for filenames matching specified extension."""
+    filelist = []
+    for root, _, files in os.walk(input_directory):
+        for f in files:
+            if f.endswith(ext):
+                filename = os.path.join(root, f)
+                filelist.append(filename)
+    return filelist
+
+
+def denoise_image(image):
+    """Denoise images with a slight gaussian blur."""
+    xy_pixel_size = image.metadata['mpp']
+    z_pixel_size = image.metadata['mppZ']
+    voxel_dimensions = []
+    for i in image.metadata['axes']:
+        if i == 'x' or i == 'y':
+            voxel_dimensions.append(xy_pixel_size)
+        elif i == 'z':
+            voxel_dimensions.append(z_pixel_size)
+    sigma = np.divide(xy_pixel_size, voxel_dimensions)  # non-isotropic
+    denoised = gaussian(image, sigma=sigma)
+    return denoised
+
+
+def preprocess_glomeruli(glomeruli_view, min_glom_diam, max_glom_diam):
+    """Preprocess glomeruli channel image."""
+    glomeruli_view = denoise_image(glomeruli_view)
+    threshold = threshold_yen(glomeruli_view)
+    label_image = label(glomeruli_view > threshold)
+    return label_image
+
+
+def filter_by_size(label_image, min_diameter, max_diameter):
+    """Identify objects within a certain size range,
+    and return those regions as a list.
+
+    Uses the equivalent_diameter attribute of regionprops."""
+    regions = []
+    for region in regionprops(label_image):
+        if ((region.equivalent_diameter >= min_diameter) and
+                (region.equivalent_diameter <= max_diameter)):
+            regions.append(region)
+    return regions
+
+
+def count_podocytes(podocytes_view, glomeruli_regions):
+    """"""
     df_image = pd.DataFrame()
     glom_index = 0  # since glom.label is not always sequential
+    voxel_volume = podocytes_view.metadata['mpp2'] * \
+                   podocytes_view.metadata['mpp2'] * \
+                   podocytes_view.metadata['mppZ']
     for glom in glomeruli_regions:
         df = pd.DataFrame()
         podocyte_regions, centroid_offset = find_podocytes(podocytes_view, glom)
@@ -230,17 +262,6 @@ def process_image(input_image, voxel_dimensions,
     return df_image
 
 
-def find_glomeruli(glomeruli_image, threshold, min_diameter, max_diameter):
-    """Identify glomeruli in the image volume and yield those regions."""
-    label_image = label(glomeruli_image > threshold)
-    regions = []
-    for region in regionprops(label_image):
-        if ((region.equivalent_diameter >= min_diameter) and
-                (region.equivalent_diameter <= max_diameter)):
-            regions.append(region)
-    return regions
-
-
 def find_podocytes(podocyte_image, glomeruli_region,
                    min_sigma=1, max_sigma=4, dog_threshold=0.17):
     """Identify podocytes in the image volume."""
@@ -258,6 +279,7 @@ def find_podocytes(podocyte_image, glomeruli_region,
                      threshold=dog_threshold)
     seeds = blob_dog_image(blobs, image_roi.shape)
     wshed = watershed(invert(image_roi), label(seeds), mask=mask)
+    return wshed
     regions = regionprops(wshed, intensity_image=image_roi)
     return (regions, centroid_offset)
 
@@ -339,6 +361,14 @@ def create_summary_stats(dataframe):
                        'podocyte_density']
     summary_dataframe = dataframe[summary_columns].drop_duplicates()
     return summary_dataframe
+
+
+def gradient_of_image(image):
+    """Direction agnostic."""
+    grad = np.gradient(image)  # gradients for individual directions
+    grad = np.stack(grad, axis=-1)  # from list of arrays to single numpy array
+    gradient_image = np.sum(abs(grad), axis=-1)
+    return gradient_image
 
 
 if __name__ == '__main__':
