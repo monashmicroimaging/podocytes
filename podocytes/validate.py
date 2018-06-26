@@ -23,12 +23,14 @@ from skimage.feature import blob_dog
 
 from main import preprocess_glomeruli, filter_by_size, \
                  crop_region_of_interest, blob_dog_image, denoise_image, \
-                 gradient_of_image
+                 gradient_of_image, marker_controlled_watershed
 
 def main():
     # user input
-    input_dir = "/Users/genevieb/Desktop/test_podo/little_input/"
-    output_dir = "/Users/genevieb/Desktop/test_podo/little_output/"
+    input_dir = "/Users/genevieb/Desktop/test_podo/"
+    output_dir = "/Users/genevieb/Desktop/test_podo/out_26June2018/validate/"
+    image_filename = os.path.join(input_dir, "little_input", "51559.lif")
+    #image_filename = os.path.join(input_dir, "input", "51548 and 51570.lif")
     channel_glomeruli = 0
     channel_podocytes = 1
     min_glom_diameter = 30
@@ -46,124 +48,151 @@ def main():
             logging.StreamHandler()
         ])
 
-    # CellCounter xml
-    xml_filename = os.path.join(input_dir, "CellCounter_51559.xml")
-    xml_tree = ET.parse(xml_filename)
-    xml_image_name = xml_tree.find('.//Image_Filename').text
     # images
-    image_filename = os.path.join(input_dir, "51559.lif")
     images = pims.open(image_filename)
-    image_series_index = match_names(images,
-                                     xml_image_name,
-                                     os.path.basename(image_filename)
-                                     )
-    if image_series_index == None:
-        logging.info("No matching image series found!")
-        return
-    logging.info(f"{images.metadata.ImageID(image_series_index)}")
-    logging.info(f"{images.metadata.ImageName(image_series_index)}")
-    images.series = image_series_index
-    images.bundle_axes = 'zyxc'
-    glomeruli_view = images[0][..., channel_glomeruli]
-    podocytes_view = images[0][..., channel_podocytes]
 
-    ground_truth_df = get_marker_coords(xml_tree, 2)
-    spatial_columns = ['MarkerZ', 'MarkerY', 'MarkerX']
-    gt_image = ground_truth_image(ground_truth_df[spatial_columns].values,
-                                  glomeruli_view.shape)
+    # CellCounter xml
+    cellcounter_filelist = find_all_count_files(os.path.join(input_dir, "counts"))
+    for xml_filename in cellcounter_filelist:
+        xml_tree = ET.parse(xml_filename)
+        xml_image_name = xml_tree.find('.//Image_Filename').text
 
-    glomeruli_labels = preprocess_glomeruli(glomeruli_view,
-                                            min_glom_diameter,
-                                            max_glom_diameter)
-    glom_regions = filter_by_size(glomeruli_labels,
-                                  min_glom_diameter,
-                                  max_glom_diameter)
-    logging.info(f"{len(glom_regions)} glomeruli identified.")
-    for glom in glom_regions:
-        bbox = glom.bbox
-        cropping_margin = 10  # pixels
-        centroid_offset = tuple(bbox[dim] - cropping_margin
-                                for dim in range(podocytes_view.ndim))
-        glom_subvolume = crop_region_of_interest(glomeruli_labels,
-                                                 bbox,
-                                                 margin=cropping_margin,
-                                                 pad_mode='zeros')
-        gt_subvolume = crop_region_of_interest(gt_image,
-                                               bbox,
-                                               margin=cropping_margin,
-                                               pad_mode='zeros')
-        if np.sum(gt_subvolume) == 0:
-            # the counts were not from this glomerulus
+        image_series_index = match_names(images,
+                                         xml_image_name,
+                                         os.path.basename(image_filename)
+                                         )
+        if image_series_index == None:
+            logging.info("No matching image series found!")
             continue
-        logging.info(f"Glom label: {glom.label}")
-        logging.info(f"Glom centroid: {glom.centroid}")
-        logging.info(f"Glom bbox: {glom.bbox}")
-        podocytes_view = denoise_image(podocytes_view)
-        podo_subvolume = crop_region_of_interest(podocytes_view,
-                                               bbox,
-                                               margin=cropping_margin,
-                                               pad_mode='mean')
-        threshold = threshold_otsu(podo_subvolume)
-        mask = podo_subvolume > threshold
-        blobs = blob_dog(podo_subvolume,
-                         min_sigma=1,
-                         max_sigma=4,
-                         threshold=0.17)
-        seeds = blob_dog_image(blobs, podo_subvolume.shape)
-        seeds[0] = np.max(seeds) + 1
-        pdocyte_gradient = gradient_of_image(podo_subvolume)
-        wshed = watershed(pdocyte_gradient, label(seeds))
-        wshed[wshed == np.max(seeds)] = 0
-        ground_truth_bool = gt_subvolume.astype(np.bool)
+        logging.info(f"{images.metadata.ImageID(image_series_index)}")
+        logging.info(f"{images.metadata.ImageName(image_series_index)}")
+        images.series = image_series_index
+        images.bundle_axes = 'zyxc'
+        glomeruli_view = images[0][..., channel_glomeruli]
+        podocytes_view = images[0][..., channel_podocytes]
 
-        ground_truth_podocyte_number = len(ground_truth_df)
-        podocyte_number_found = len(set(wshed.ravel())) - 1
-        logging.info(f"ground_truth_podocyte_number: {ground_truth_podocyte_number}")
-        logging.info(f"podocyte_number_found: {podocyte_number_found}")
+        ground_truth_df = get_marker_coords(xml_tree, 2)
+        spatial_columns = ['MarkerZ', 'MarkerY', 'MarkerX']
+        gt_image = ground_truth_image(ground_truth_df[spatial_columns].values,
+                                      glomeruli_view.shape)
 
-        found_label_set = set(wshed.ravel())
-        found_label_set.remove(0)  # excludes zero label
-        ground_truth_label_set = set(gt_image.ravel())
-        ground_truth_label_set.remove(0)  # excludes zero label
+        glomeruli_labels = preprocess_glomeruli(glomeruli_view)
+        glom_regions = filter_by_size(glomeruli_labels,
+                                      min_glom_diameter,
+                                      max_glom_diameter)
+        #io.imsave(os.path.join(output_dir, "glomeruli_labels.tif"), glomeruli_labels)
+        logging.info(f"{len(glom_regions)} glomeruli identified.")
+        for glom in glom_regions:
+            bbox = glom.bbox
+            cropping_margin = 10  # pixels
+            centroid_offset = tuple(bbox[dim] - cropping_margin
+                                    for dim in range(podocytes_view.ndim))
+            glom_subvolume = crop_region_of_interest(glomeruli_view,
+                                                     bbox,
+                                                     margin=cropping_margin,
+                                                     pad_mode='mean')
+            glom_subvolume_labels = crop_region_of_interest(glomeruli_labels,
+                                                            bbox,
+                                                            margin=cropping_margin,
+                                                            pad_mode='zeros')
+            gt_subvolume = crop_region_of_interest(gt_image,
+                                                   bbox,
+                                                   margin=cropping_margin,
+                                                   pad_mode='zeros')
+            if np.sum(gt_subvolume) == 0:
+                # the counts were not from this glomerulus
+                continue
+            podocytes_view = denoise_image(podocytes_view)
+            podo_subvolume = crop_region_of_interest(podocytes_view,
+                                                   bbox,
+                                                   margin=cropping_margin,
+                                                   pad_mode='mean')
+            threshold = threshold_otsu(podo_subvolume)
+            mask = podo_subvolume > threshold
+            blobs = blob_dog(podo_subvolume,
+                             min_sigma=1,
+                             max_sigma=4,
+                             threshold=0.17)
+            wshed = marker_controlled_watershed(podo_subvolume, blobs)
+            ground_truth_bool = gt_subvolume.astype(np.bool)
+            result = wshed[ground_truth_bool]
 
-        result = wshed[ground_truth_bool]
+            found_label_set = set(wshed.ravel())
+            found_label_set.remove(0)  # excludes zero label
+            ground_truth_label_set = set(gt_image.ravel())
+            ground_truth_label_set.remove(0)  # excludes zero label
+            fancy_indexed_set = set(result)
 
-        click_but_no_label = list(set(range(1, ground_truth_podocyte_number + 1)) - set(wshed.ravel()))
-        labels_with_zero_clicks = set(wshed.ravel()) - set(result)
-        try:
-            labels_with_zero_clicks.remove(0)
-        except KeyError:
-            pass
-        finally:
-            labels_with_zero_clicks = list(labels_with_zero_clicks)
-        labels_with_one_click = [i for i, count in collections.Counter(result).items() if count == 1]
-        labels_with_multiple_clicks = [i for i, count in collections.Counter(result).items() if count > 1]
+            ground_truth_podocyte_number = len(ground_truth_df)
+            podocyte_number_found = len(found_label_set)
+            logging.info(f"ground_truth_podocyte_number: {ground_truth_podocyte_number}")
+            logging.info(f"podocyte_number_found: {podocyte_number_found}")
+            logging.info(f"difference: {podocyte_number_found - ground_truth_podocyte_number}")
+            logging.info(" ")
+            logging.info(f"Glom label: {glom.label}")
+            logging.info(f"Glom centroid: {glom.centroid}")
+            logging.info(f"Glom bbox: {glom.bbox}")
+            logging.info(" ")
+            click_but_no_label = list(ground_truth_label_set - fancy_indexed_set)
+            labels_with_zero_clicks = found_label_set - fancy_indexed_set
+            try:
+                labels_with_zero_clicks.remove(0)
+            except KeyError:
+                pass
+            finally:
+                labels_with_zero_clicks = list(labels_with_zero_clicks)
 
-        n_click_but_no_label = len(click_but_no_label)  # missed podocytes, should have found these
-        n_labels_with_zero_clicks = len(labels_with_zero_clicks)  # aren't supposed to exist
-        n_labels_with_one_click = len(labels_with_one_click)  # correctly identified
-        n_labels_with_multiple_clicks = len(labels_with_multiple_clicks)  # labels should be split up
-        logging.info(f"{n_click_but_no_label} - n_click_but_no_label, missed podocytes")
-        logging.info(f"{n_labels_with_zero_clicks} - n_labels_with_zero_clicks, aren't supposed to exist")
-        logging.info(f"{n_labels_with_one_click} - n_labels_with_one_click, correctly identified")
-        logging.info(f"{n_labels_with_multiple_clicks} - n_labels_with_multiple_clicks, labels should be split up")
+            labels_with_one_click = [i for i, count in collections.Counter(result).items() if count == 1]
+            labels_with_multiple_clicks = [i for i, count in collections.Counter(result).items() if count > 1]
 
-        logging.info(" ")
-        logging.info("click_but_no_label: (gt label numbering)")
-        logging.info(f"{click_but_no_label}")
-        logging.info("labels_with_zero_clicks:")
-        logging.info(f"{labels_with_zero_clicks}")
-        logging.info("labels_with_one_click:")
-        logging.info(f"{labels_with_one_click}")
-        logging.info("labels_with_multiple_clicks:")
-        logging.info(f"{labels_with_multiple_clicks}")
-        logging.info(" ")
-        io.imsave(os.path.join(output_dir, "podo_subvolume.tif"), podo_subvolume.astype(np.float32))
-        io.imsave(os.path.join(output_dir, "wshed.tif"), wshed.astype(np.int32))
-        io.imsave(os.path.join(output_dir, "glom_subvolume.tif"), glom_subvolume.astype(np.int32))
-        io.imsave(os.path.join(output_dir, "gt_subvolume.tif"), gt_subvolume.astype(np.int32))
-        io.imsave(os.path.join(output_dir, "mask.tif"), mask.astype(np.int8))
-        logging.info("Program finished.")
+            n_click_but_no_label = len(click_but_no_label)  # missed podocytes, should have found these
+            n_labels_with_zero_clicks = len(labels_with_zero_clicks)  # aren't supposed to exist
+            n_labels_with_one_click = len(labels_with_one_click)  # correctly identified
+            n_labels_with_multiple_clicks = len(labels_with_multiple_clicks)  # labels should be split up
+            logging.info(f"{n_click_but_no_label} - n_click_but_no_label, missed podocytes")
+            logging.info(f"{n_labels_with_zero_clicks} - n_labels_with_zero_clicks, aren't supposed to exist")
+            logging.info(f"{n_labels_with_one_click} - n_labels_with_one_click, correctly identified")
+            logging.info(f"{n_labels_with_multiple_clicks} - n_labels_with_multiple_clicks, labels should be split up")
+
+            logging.info(" ")
+            logging.info("click_but_no_label: (gt label numbering)")
+            logging.info(f"{click_but_no_label}")
+            logging.info("labels_with_zero_clicks:")
+            logging.info(f"{labels_with_zero_clicks}")
+            logging.info("labels_with_one_click:")
+            logging.info(f"{labels_with_one_click}")
+            logging.info("labels_with_multiple_clicks:")
+            logging.info(f"{labels_with_multiple_clicks}")
+            logging.info(" ")
+            logging.info(f"result = {result}")
+            logging.info(" ")
+
+            clicks_mask = (gt_subvolume > 0) * 255
+            glom_subvolume_mask = (glom_subvolume_labels > 0) * 255
+            output_image = np.stack([wshed.astype(np.uint8),
+                                     clicks_mask.astype(np.uint8),
+                                     (podo_subvolume * 255).astype(np.uint8),
+                                     glom_subvolume.astype(np.uint8),
+                                     glom_subvolume_mask.astype(np.uint8)],
+                                    axis=1
+                                    )  # ImageJ expects input in 'zcyx' format
+            output_image = np.expand_dims(output_image, 0)   # create empty time axis
+            output_fname = xml_image_name
+            output_fname = output_fname.replace(os.sep, '-')
+            output_fname = output_fname.replace('.', ' ')
+            io.imsave(os.path.join(output_dir, output_fname+f"_glom{glom.label}.tif"), output_image, imagej=True)
+
+    logging.info("Program finished.")
+
+
+def find_all_count_files(input_directory):
+    filelist = []
+    for root, _, files in os.walk(input_directory):
+        for file in files:
+            if file.endswith('.xml'):
+                filename = os.path.join(root, file)
+                filelist.append(filename)
+    return filelist
 
 
 def match_names(images, xml_image_name, basename):
