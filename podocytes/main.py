@@ -26,8 +26,10 @@ import tifffile._tifffile  # imported to silence pims warning
 # nonbuffered_stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 # sys.stdout = nonbuffered_stdout
 
+__version__ = '0.1.0'
 
-__DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
+__DESCR__ = (f'Version {__version__} '
+             'Load, segment, count, and measure glomeruli and podocytes in '
              'fluorescence images.')
 
 
