@@ -108,15 +108,13 @@ def main():
                                  f"{int(glom.centroid[0])})")
                     df = get_podocyte_avg_statistics(df)
                     df = get_glom_statistics(df, glom, glom_index, voxel_volume)
-                    detailed_stats = detailed_stats.append(df, ignore_index=True, sort=False)
-                    #detailed_stats.to_csv(os.path.join(output_directory, 'detailedstats.csv'))
+                    df['image_series_num'] = images.metadata.ImageID(im_series_num)
+                    df['image_series_name'] = images.metadata.ImageName(im_series_num)
+                    df['image_filename'] = filename
+                    df = detailed_stats.append(df, ignore_index=True, sort=False)
+                    if detailed_stats is not None:
+                        detailed_stats.to_csv(output_filename_detailed_stats)
                     glom_index += 1
-            # add image details to dataframe
-            if detailed_stats is not None:
-                detailed_stats['image_series_num'] = images.metadata.ImageID(im_series_num)
-                detailed_stats['image_series_name'] = images.metadata.ImageName(im_series_num)
-                detailed_stats['image_filename'] = filename
-                detailed_stats.to_csv(output_filename_detailed_stats)
     # Summarize output and write to file
     summary_stats = create_summary_stats(detailed_stats)
     output_filename_summary_stats = os.path.join(output_directory,
