@@ -80,7 +80,10 @@ def main():
     logging.info(f"{len(filelist)} {ext} files found.")
     for filename in filelist:
         logging.info(f"Processing file: {filename}")
-        images = pims.open(filename)
+        try:
+            images = pims.open(filename)
+        except Exception:
+            continue
         for im_series_num in range(images.metadata.ImageCount()):
             logging.info(f"{images.metadata.ImageID(im_series_num)}")
             logging.info(f"{images.metadata.ImageName(im_series_num)}")
@@ -242,7 +245,7 @@ def find_files(input_directory, ext):
     filelist = []
     for root, _, files in os.walk(input_directory):
         for f in files:
-            if f.endswith(ext):
+            if f.endswith(ext) and not f.startswith('.'):
                 filename = os.path.join(root, f)
                 filelist.append(filename)
     return filelist
@@ -333,7 +336,7 @@ def log_file_begins(output_directory, args, timestamp):
     # Log user input arguments
     input_directory = ' '.join(args.input_directory)
     output_directory = ' '.join(args.output_directory)
-    logging.info("Podocyte automated analysis program")
+    logging.info("Podocyte automated analysis program, version {__version__}")
     logging.info(f"{timestamp}")
     logging.info("========== USER INOUT ARGUMENTS ==========")
     logging.info(f"input_directory: {input_directory}")
