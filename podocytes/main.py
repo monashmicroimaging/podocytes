@@ -28,7 +28,7 @@ import tifffile._tifffile  # imported to silence pims warning
 
 __version__ = '0.1.0'
 
-__DESCR__ = (f'Version {__version__} '
+__DESCR__ = ('Version ' + __version__ + ' ' +
              'Load, segment, count, and measure glomeruli and podocytes in '
              'fluorescence images.')
 
@@ -116,9 +116,8 @@ def main():
                     df['image_series_num'] = images.metadata.ImageID(im_series_num)
                     df['image_series_name'] = images.metadata.ImageName(im_series_num)
                     df['image_filename'] = filename
-                    df = detailed_stats.append(df, ignore_index=True, sort=False)
-                    if detailed_stats is not None:
-                        detailed_stats.to_csv(output_filename_detailed_stats)
+                    detailed_stats = detailed_stats.append(df, ignore_index=True, sort=False)
+                    detailed_stats.to_csv(output_filename_detailed_stats)
                     glom_index += 1
     # Summarize output and write to file
     summary_stats = create_summary_stats(detailed_stats)
