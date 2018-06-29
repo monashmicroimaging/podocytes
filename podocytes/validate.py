@@ -27,10 +27,10 @@ from main import preprocess_glomeruli, filter_by_size, \
 
 def main():
     # user input
-    input_dir = "/Users/genevieb/Desktop/test_podo/"
-    output_dir = "/Users/genevieb/Desktop/test_podo/out_26June2018/validate/"
-    image_filename = os.path.join(input_dir, "little_input", "51559.lif")
-    #image_filename = os.path.join(input_dir, "input", "51548 and 51570.lif")
+    input_counts_dir = "/Users/genevieb/Documents/ImageAnalysis/kidney_glomeruli/input_data/SP8/Postnatal21day_mice/markers_21daygloms/"
+    input_image_dir = "/Users/genevieb/Documents/ImageAnalysis/kidney_glomeruli/input_data/SP8/Postnatal21day_mice/input_files/"
+    output_dir = "/Users/genevieb/Documents/ImageAnalysis/kidney_glomeruli/input_data/SP8/Postnatal21day_mice/input_files/output_27June2018/validate//"
+    image_filename = os.path.join(input_image_dir, "51571 and 51575.lif")
     channel_glomeruli = 0
     channel_podocytes = 1
     min_glom_diameter = 30
@@ -50,9 +50,12 @@ def main():
 
     # images
     images = pims.open(image_filename)
+    logging.info(f"Processing file: {image_filename}")
 
     # CellCounter xml
-    cellcounter_filelist = find_all_count_files(os.path.join(input_dir, "counts"))
+    cellcounter_filelist = find_all_count_files(input_counts_dir)
+    logging.info(f"Found {len(cellcounter_filelist)} xml count files. ")
+    logging.info(f"{cellcounter_filelist}")
     for xml_filename in cellcounter_filelist:
         xml_tree = ET.parse(xml_filename)
         xml_image_name = xml_tree.find('.//Image_Filename').text
@@ -77,6 +80,7 @@ def main():
                                       glomeruli_view.shape)
 
         glomeruli_labels = preprocess_glomeruli(glomeruli_view)
+        io.imsave(os.path.join(output_dir, output_fname+f"_Glomeruli_Labels.tif"), glomeruli_labels, imagej=True)
         glom_regions = filter_by_size(glomeruli_labels,
                                       min_glom_diameter,
                                       max_glom_diameter)
