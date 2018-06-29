@@ -28,7 +28,7 @@ import tifffile._tifffile  # imported to silence pims warning
 
 __version__ = '0.1.0'
 
-__DESCR__ = ('Version ' + __version__ + ' ' +
+__DESCR__ = ('Version ' + __version__ + ' '
              'Load, segment, count, and measure glomeruli and podocytes in '
              'fluorescence images.')
 
@@ -335,7 +335,7 @@ def log_file_begins(output_directory, args, timestamp):
     # Log user input arguments
     input_directory = ' '.join(args.input_directory)
     output_directory = ' '.join(args.output_directory)
-    logging.info("Podocyte automated analysis program, version {__version__}")
+    logging.info("Podocyte automated analysis program, version " + __version__)
     logging.info(f"{timestamp}")
     logging.info("========== USER INOUT ARGUMENTS ==========")
     logging.info(f"input_directory: {input_directory}")
