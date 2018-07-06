@@ -6,7 +6,7 @@
 [](www.oracle.com/technetwork/java/javase/downloads/index.html)
 
 ### Install Podo
-* Download [Podo.app.zip](https://github.com/monashmicroimaging/podocytes/releases/tag/v0.1.0)
+* Download [Podo.app.zip](https://github.com/monashmicroimaging/podocytes/releases/tag/v0.1.0-alpha)
 (currently available only for Mac) 
 
 Unzip the file, then move the app to /Applications/
