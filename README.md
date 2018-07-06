@@ -21,6 +21,7 @@ for step by step screenshots.
 * Currently, you must be connected to the internet to run the app.
 Pims relies on the Bioformats [loci_tools.jar](http://downloads.openmicroscopy.org/bio-formats/) 
 and downloads this at program runtime.
+* The output directory location must not include any spaces in the path. Eg: `/Documents/path/to/output/` is fine, but `Documents/folder with spaces/to/output/` is not. 
 
 ## For developers
 ### Setup development environment
