@@ -24,11 +24,6 @@ import tifffile._tifffile  # imported to silence pims warning
 
 def main():
     args = configure_parser()  # User input arguments
-    # Need a better solution for parsing directory filepath input with spaces
-    # this way with Gooey is prone to unexpeced, buggy behaviour, see:
-    # https://github.com/chriskiehl/Gooey/issues/301
-    input_directory = ' '.join(args.input_directory)
-    output_directory = ' '.join(args.output_directory)
     # User input arguments are expected to have 1-based indesxing
     # we convert to 0-based indexing for the python program logic.
     channel_glomeruli = args.glomeruli_channel_number - 1
@@ -37,16 +32,17 @@ def main():
     # Initialize
     time_start = time.time()
     timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
-    log_file_begins(output_directory, args, timestamp)
+    log_file_begins(args.output_directory, args, timestamp)
     detailed_stats = pd.DataFrame()
-    output_filename_detailed_stats = os.path.join(output_directory,
+    output_filename_detailed_stats = os.path.join(args.output_directory,
             'Podocyte_detailed_stats_'+timestamp+'.csv')
 
     # Get to work
-    filelist = find_files(input_directory, args.file_extension)
+    filelist = find_files(args.input_directory, args.file_extension)
     logging.info(f"{len(filelist)} {args.file_extension} files found.")
     for filename in filelist:
         logging.info(f"Processing file: {filename}")
+        import pdb; pdb.set_trace()
         images = pims.open(filename)
         for im_series_num in range(images.metadata.ImageCount()):
             logging.info(f"{images.metadata.ImageID(im_series_num)}")
@@ -80,7 +76,7 @@ def main():
                     df = podocyte_avg_statistics(df)
                     df = glom_statistics(df, glom, glom_index, voxel_volume)
                     detailed_stats = detailed_stats.append(df, ignore_index=True, sort=False)
-                    #detailed_stats.to_csv(os.path.join(output_directory, 'detailedstats.csv'))
+                    #detailed_stats.to_csv(os.path.join(args.output_directory, 'detailedstats.csv'))
                     glom_index += 1
             # add image details to dataframe
             if detailed_stats is not None:
@@ -90,7 +86,7 @@ def main():
                 detailed_stats.to_csv(output_filename_detailed_stats)
     # Summarize output and write to file
     summary_stats = create_summary_stats(detailed_stats)
-    output_filename_summary_stats = os.path.join(output_directory,
+    output_filename_summary_stats = os.path.join(args.output_directory,
             'Podocyte_summary_stats_'+timestamp+'.csv')
     summary_stats.to_csv(output_filename_summary_stats)
     logging.info(f'Saved statistics to file: {output_filename_summary_stats}')
@@ -468,13 +464,11 @@ def gradient_of_image(image):
     return gradient_image
 
 
-def log_file_begins(output_directory, args, timestamp):
+def log_file_begins(args, timestamp):
     """Initialize logging and begin writing log file.
 
     Parameters
     ----------
-    output_directory : str
-        Filepath to output directory location.
     args : argparse arguments
         Input arguments from user.
     timestamp :  str
@@ -484,7 +478,7 @@ def log_file_begins(output_directory, args, timestamp):
     log_filename : str
         Filepath to output log text file location.
     """
-    log_filename = os.path.join(output_directory, f"log_podo_{timestamp}")
+    log_filename = os.path.join(args.output_directory, f"log_podo_{timestamp}")
     logging.basicConfig(
         format="%(asctime)s %(message)s",
         level=logging.DEBUG,
@@ -493,13 +487,11 @@ def log_file_begins(output_directory, args, timestamp):
             logging.StreamHandler()
         ])
     # Log user input arguments
-    input_directory = ' '.join(args.input_directory)
-    output_directory = ' '.join(args.output_directory)
     logging.info("Podocyte automated analysis program")
     logging.info(f"{timestamp}")
-    logging.info("========== USER INOUT ARGUMENTS ==========")
-    logging.info(f"input_directory: {input_directory}")
-    logging.info(f"output_directory: {output_directory}")
+    logging.info("========== USER INPUT ARGUMENTS ==========")
+    logging.info(f"input_directory: {args.input_directory}")
+    logging.info(f"output_directory: {args.output_directory}")
     logging.info(f"file_extension[0]: {args.file_extension}")
     logging.info(f"glomeruli_channel_number: {args.glomeruli_channel_number}")
     logging.info(f"podocyte_channel_number: {args.podocyte_channel_number}")
