@@ -26,10 +26,8 @@ import tifffile._tifffile  # imported to silence pims warning
 # nonbuffered_stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 # sys.stdout = nonbuffered_stdout
 
-__version__ = '0.1.0'
 
-__DESCR__ = ('Version ' + __version__ + ' '
-             'Load, segment, count, and measure glomeruli and podocytes in '
+__DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
              'fluorescence images.')
 
 
@@ -39,23 +37,23 @@ __DESCR__ = ('Version ' + __version__ + ' '
 def main():
     # Get user input
     parser = GooeyParser(prog='Podocyte Profiler', description=__DESCR__)
-    parser.add_argument('input_directory', widget='DirChooser', nargs='+',
+    parser.add_argument('input_directory', widget='DirChooser',
                         help='Folder containing files for processing.')
-    parser.add_argument('output_directory', widget='DirChooser', nargs='+',
+    parser.add_argument('output_directory', widget='DirChooser',
                         help='Folder to save output analysis files.')
-    parser.add_argument('glomeruli_channel_number', nargs='+',
+    parser.add_argument('glomeruli_channel_number',
                         help='Fluorescence channel with glomeruli.',
                         type=int, default=1)
-    parser.add_argument('podocyte_channel_number', nargs='+',
+    parser.add_argument('podocyte_channel_number',
                         help='Fluorescence channel with podocytes.',
                         type=int, default=2)
-    parser.add_argument('minimum_glomerular_diameter', nargs='+',
+    parser.add_argument('minimum_glomerular_diameter',
                         help='Minimum glomerular diameter (microns).',
                         type=float, default=30)
-    parser.add_argument('maximum_glomerular_diameter', nargs='+',
+    parser.add_argument('maximum_glomerular_diameter',
                         help='Maximum glomerular diameter (microns).',
                         type=float, default=300)
-    parser.add_argument('file_extension', nargs='+',
+    parser.add_argument('file_extension',
                         help='Extension of image file format (.tif, etc.)',
                         type=str, default='.lif')
     args = parser.parse_args()
@@ -63,8 +61,8 @@ def main():
     output_directory = ' '.join(args.output_directory)
     channel_glomeruli = args.glomeruli_channel_number[0] - 1
     channel_podocytes = args.podocyte_channel_number[0] - 1
-    min_glom_diameter = args.minimum_glomerular_diameter[0]
-    max_glom_diameter = args.maximum_glomerular_diameter[0]
+    min_glom_diameter = args.minimum_glomerular_diameter
+    max_glom_diameter = args.maximum_glomerular_diameter
     ext = args.file_extension[0]
 
     # Initialize
@@ -80,10 +78,7 @@ def main():
     logging.info(f"{len(filelist)} {ext} files found.")
     for filename in filelist:
         logging.info(f"Processing file: {filename}")
-        try:
-            images = pims.open(filename)
-        except Exception:
-            continue
+        images = pims.open(filename)
         for im_series_num in range(images.metadata.ImageCount()):
             logging.info(f"{images.metadata.ImageID(im_series_num)}")
             logging.info(f"{images.metadata.ImageName(im_series_num)}")
@@ -102,7 +97,7 @@ def main():
                     podocyte_regions, centroid_offset, wshed = find_podocytes(
                         podocytes_view,
                         glom)
-                    df = get_podocyte_statistics(podocyte_regions,
+                    df = podocyte_statistics(podocyte_regions,
                                                  centroid_offset,
                                                  voxel_volume)
                     if df is None: continue
@@ -111,14 +106,17 @@ def main():
                                  f"{int(glom.centroid[2])}, " +
                                  f"{int(glom.centroid[1])}, " +
                                  f"{int(glom.centroid[0])})")
-                    df = get_podocyte_avg_statistics(df)
-                    df = get_glom_statistics(df, glom, glom_index, voxel_volume)
-                    df['image_series_num'] = images.metadata.ImageID(im_series_num)
-                    df['image_series_name'] = images.metadata.ImageName(im_series_num)
-                    df['image_filename'] = filename
+                    df = podocyte_avg_statistics(df)
+                    df = glom_statistics(df, glom, glom_index, voxel_volume)
                     detailed_stats = detailed_stats.append(df, ignore_index=True, sort=False)
-                    detailed_stats.to_csv(output_filename_detailed_stats)
+                    #detailed_stats.to_csv(os.path.join(output_directory, 'detailedstats.csv'))
                     glom_index += 1
+            # add image details to dataframe
+            if detailed_stats is not None:
+                detailed_stats['image_series_num'] = images.metadata.ImageID(im_series_num)
+                detailed_stats['image_series_name'] = images.metadata.ImageName(im_series_num)
+                detailed_stats['image_filename'] = filename
+                detailed_stats.to_csv(output_filename_detailed_stats)
     # Summarize output and write to file
     summary_stats = create_summary_stats(detailed_stats)
     output_filename_summary_stats = os.path.join(output_directory,
@@ -244,7 +242,7 @@ def find_files(input_directory, ext):
     filelist = []
     for root, _, files in os.walk(input_directory):
         for f in files:
-            if f.endswith(ext) and not f.startswith('.'):
+            if f.endswith(ext):
                 filename = os.path.join(root, f)
                 filelist.append(filename)
     return filelist
@@ -268,7 +266,7 @@ def find_podocytes(podocyte_image, glomeruli_region,
     return (regions, centroid_offset, wshed)
 
 
-def get_glom_statistics(df, glom, glom_index, voxel_volume):
+def glom_statistics(df, glom, glom_index, voxel_volume):
     """"""
     df['number_of_podocytes'] = len(df)
     df['podocyte_density'] = len(df) / (glom.filled_area * voxel_volume)
@@ -283,7 +281,7 @@ def get_glom_statistics(df, glom, glom_index, voxel_volume):
     return df
 
 
-def get_podocyte_avg_statistics(df):
+def podocyte_avg_statistics(df):
     """Average podocyte statistics per glomerulus."""
     df['avg_podocyte_voxel_number'] = np.mean(df['podocyte_voxel_number'])
     df['avg_podocyte_volume'] = np.mean(df['podocyte_volume'])
@@ -291,7 +289,7 @@ def get_podocyte_avg_statistics(df):
     return df
 
 
-def get_podocyte_statistics(podocyte_regions, centroid_offset, voxel_volume):
+def podocyte_statistics(podocyte_regions, centroid_offset, voxel_volume):
     """"""
     df = pd.DataFrame()
     for pod in podocyte_regions:
@@ -335,7 +333,7 @@ def log_file_begins(output_directory, args, timestamp):
     # Log user input arguments
     input_directory = ' '.join(args.input_directory)
     output_directory = ' '.join(args.output_directory)
-    logging.info("Podocyte automated analysis program, version " + __version__)
+    logging.info("Podocyte automated analysis program")
     logging.info(f"{timestamp}")
     logging.info("========== USER INOUT ARGUMENTS ==========")
     logging.info(f"input_directory: {input_directory}")
