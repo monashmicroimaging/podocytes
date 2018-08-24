@@ -24,8 +24,13 @@ import tifffile._tifffile  # imported to silence pims warning
 
 def main():
     args = configure_parser()  # User input arguments
+    # Need a better solution for parsing directory filepath input with spaces
+    # this way with Gooey is prone to unexpeced, buggy behaviour, see:
+    # https://github.com/chriskiehl/Gooey/issues/301
     input_directory = ' '.join(args.input_directory)
     output_directory = ' '.join(args.output_directory)
+    # User input arguments are expected to have 1-based indesxing
+    # we convert to 0-based indexing for the python program logic.
     channel_glomeruli = args.glomeruli_channel_number - 1
     channel_podocytes = args.podocyte_channel_number - 1
 
