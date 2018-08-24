@@ -26,8 +26,10 @@ import tifffile._tifffile  # imported to silence pims warning
 # nonbuffered_stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 # sys.stdout = nonbuffered_stdout
 
+__version__ = '0.1.0'
 
-__DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
+__DESCR__ = ('Version ' + __version__ + ' '
+             'Load, segment, count, and measure glomeruli and podocytes in '
              'fluorescence images.')
 
 
@@ -78,7 +80,10 @@ def main():
     logging.info(f"{len(filelist)} {ext} files found.")
     for filename in filelist:
         logging.info(f"Processing file: {filename}")
-        images = pims.open(filename)
+        try:
+            images = pims.open(filename)
+        except Exception:
+            continue
         for im_series_num in range(images.metadata.ImageCount()):
             logging.info(f"{images.metadata.ImageID(im_series_num)}")
             logging.info(f"{images.metadata.ImageName(im_series_num)}")
@@ -108,15 +113,12 @@ def main():
                                  f"{int(glom.centroid[0])})")
                     df = get_podocyte_avg_statistics(df)
                     df = get_glom_statistics(df, glom, glom_index, voxel_volume)
+                    df['image_series_num'] = images.metadata.ImageID(im_series_num)
+                    df['image_series_name'] = images.metadata.ImageName(im_series_num)
+                    df['image_filename'] = filename
                     detailed_stats = detailed_stats.append(df, ignore_index=True, sort=False)
-                    #detailed_stats.to_csv(os.path.join(output_directory, 'detailedstats.csv'))
+                    detailed_stats.to_csv(output_filename_detailed_stats)
                     glom_index += 1
-            # add image details to dataframe
-            if detailed_stats is not None:
-                detailed_stats['image_series_num'] = images.metadata.ImageID(im_series_num)
-                detailed_stats['image_series_name'] = images.metadata.ImageName(im_series_num)
-                detailed_stats['image_filename'] = filename
-                detailed_stats.to_csv(output_filename_detailed_stats)
     # Summarize output and write to file
     summary_stats = create_summary_stats(detailed_stats)
     output_filename_summary_stats = os.path.join(output_directory,
@@ -242,7 +244,7 @@ def find_files(input_directory, ext):
     filelist = []
     for root, _, files in os.walk(input_directory):
         for f in files:
-            if f.endswith(ext):
+            if f.endswith(ext) and not f.startswith('.'):
                 filename = os.path.join(root, f)
                 filelist.append(filename)
     return filelist
@@ -333,7 +335,7 @@ def log_file_begins(output_directory, args, timestamp):
     # Log user input arguments
     input_directory = ' '.join(args.input_directory)
     output_directory = ' '.join(args.output_directory)
-    logging.info("Podocyte automated analysis program")
+    logging.info("Podocyte automated analysis program, version " + __version__)
     logging.info(f"{timestamp}")
     logging.info("========== USER INOUT ARGUMENTS ==========")
     logging.info(f"input_directory: {input_directory}")
