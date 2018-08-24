@@ -129,7 +129,21 @@ def main():
 
 def blob_dog_image(blobs, image_shape):
     """Create boolean image where pixels labelled True
-      match coordinates returned from skimage blob_dog() function."""
+    match coordinates returned from skimage blob_dog() function.
+
+    Parameters
+    ----------
+    blobs : (n, image.ndim + 1) ndarray
+        Input to blob_dog_image is the output of skimage.feature.blog_dog()
+    image_shape : tuple of int
+        Shape of image array used to generate input parameter blobs.
+
+    Returns
+    -------
+    blob_map : 2D or 3D ndarray
+        Boolean array shaped like image_shape,
+        with blob coordinate locations represented by True values.
+    """
     blob_map = np.zeros(image_shape).astype(np.bool)
     for blob in blobs:
         blob_map[int(blob[0]), int(blob[1]), int(blob[2])] = True
@@ -137,7 +151,18 @@ def blob_dog_image(blobs, image_shape):
 
 
 def create_summary_stats(dataframe):
-    """Return dataframe with average podocyte statistics per glomerulus."""
+    """Return dataframe with average podocyte statistics per glomerulus.
+
+    Parameters
+    ----------
+    dataframe : DataFrame
+        Pandas dataframe containing detailed podocyte statistics.
+
+    Returns
+    -------
+    summary_dataframe : DataFrame
+        Pandas dataframe containing average podocyte statistics per glomerulus.
+    """
     if len(dataframe) == 0:
         return None
     else:
@@ -179,6 +204,7 @@ def crop_region_of_interest(image, bbox, margin=0, pad_mode='mean'):
         then the output image is padded.
     pad_mode : string, optional
         Type of border padding to use. Is either 'mean' (default) or 'zeros'.
+
     Returns
     -------
     roi_image : (N, M) ndarray
@@ -210,7 +236,18 @@ def crop_region_of_interest(image, bbox, margin=0, pad_mode='mean'):
 
 
 def denoise_image(image):
-    """Denoise images with a slight gaussian blur."""
+    """Denoise images with a slight gaussian blur.
+
+    Parameters
+    ----------
+    image : (N, M) ndarray
+        Original image data from a single fluorescence channel.
+
+    Returns
+    -------
+    denoised : (N, M) ndarray
+        Image denoised by slight gaussian blur.
+    """
     xy_pixel_size = image.metadata['mpp']
     z_pixel_size = image.metadata['mppZ']
     voxel_dimensions = []
@@ -228,7 +265,24 @@ def filter_by_size(label_image, min_diameter, max_diameter):
     """Identify objects within a certain size range,
     and return those regions as a list.
 
-    Uses the equivalent_diameter attribute of regionprops."""
+    Uses the equivalent_diameter attribute of regionprops.
+
+    Parameters
+    ----------
+    label_image : (N, M) ndarray
+        Label image
+    min_diameter : float
+        Minimum expected size (equivalent diameter of labelled voxels)
+        Uses the equivalent_diameter attribute of scikit-image regionprops.
+    max_diameter : float
+        Maximum expected size (equivalent diameter of labelled voxels)
+        Uses the equivalent_diameter attribute of scikit-image regionprops.
+
+    Returns
+    -------
+    regions : list of RegionProperties
+        RegionProperties from scikit-image.
+    """
     regions = []
     for region in regionprops(label_image):
         if ((region.equivalent_diameter >= min_diameter) and
@@ -238,7 +292,20 @@ def filter_by_size(label_image, min_diameter, max_diameter):
 
 
 def find_files(input_directory, ext):
-    """Recursive search for filenames matching specified extension."""
+    """Recursive search for filenames matching specified extension.
+
+    Parameters
+    ----------
+    input_directory : str
+        Filepath to input directory location.
+    ext : str
+        File extension (eg: '.tif', '.lif', etc.)
+
+    Returns
+    -------
+    filelist : list of str
+        List of files matching specified extension in the input directory path.
+    """
     filelist = []
     for root, _, files in os.walk(input_directory):
         for f in files:
@@ -250,7 +317,30 @@ def find_files(input_directory, ext):
 
 def find_podocytes(podocyte_image, glomeruli_region,
                    min_sigma=1, max_sigma=4, dog_threshold=0.17):
-    """Identify podocytes in the image volume."""
+    """Identify podocytes in the image volume.
+
+    Parameters
+    ----------
+    podocyte_image : (M, N) ndarray
+        Image of podocyte fluorescence.
+    glomeruli_region : RegionProperties
+        Single glomeruli region, found with scikit-image regionprops.
+    min_sigma : float, optional
+        Minimum sigma to find podocyte blobs using difference of gaussians.
+    max_sigma : float, optional
+        Maximum sigma to find podocyte blobs using difference of gaussians.
+    dog_threshold : float, optional
+        Threshold value for difference of gaussian blob finding.
+
+    Returns
+    -------
+    regions : List of RegionProperties
+        Region properties for podocytes identified.
+    centroid_offset : tuple of int
+        Coordinate offset of glomeruli subvolume in image.
+    wshed : (M, N) ndarray
+        Watershed image showing podoyctes.
+    """
     bbox = glomeruli_region.bbox  # bounding box coordinates
     cropping_margin = 10  # pixels
     centroid_offset = tuple(bbox[dim] - cropping_margin
@@ -267,7 +357,25 @@ def find_podocytes(podocyte_image, glomeruli_region,
 
 
 def glom_statistics(df, glom, glom_index, voxel_volume):
-    """"""
+    """Add glomerular information to dataframe containing podocyte statistics
+    for a single glomerulus.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Pandas dataframe containing values for podocytes.
+    glom : RegionProperties
+         Glomerulus region properties (from scikit-image regionprops).
+    glom_index : int
+        Integer label for glomerulus.
+    voxel_volume : float
+        Real space volume of a single image voxel.
+    Returns
+    -------
+    df : DataFrame
+        Input pandas dataframe now containing additional columns
+        containing data about the outer glomerulus.
+    """
     df['number_of_podocytes'] = len(df)
     df['podocyte_density'] = len(df) / (glom.filled_area * voxel_volume)
     df['glomeruli_index'] = glom_index
@@ -282,7 +390,22 @@ def glom_statistics(df, glom, glom_index, voxel_volume):
 
 
 def podocyte_avg_statistics(df):
-    """Average podocyte statistics per glomerulus."""
+    """Average podocyte statistics per glomerulus.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Pandas dataframe containing podocyte statistics for a single glomerulus
+
+    Returns
+    -------
+    df : DataFrame
+        Pandas dataframe containing additional series with aggregate statistics
+        for podocytes per glomerulus, including
+        * the average podocyte voxel number
+        * the average volume in real space of the podocytes
+        * the average equivalent diameter of podocytes (in pixels)
+    """
     df['avg_podocyte_voxel_number'] = np.mean(df['podocyte_voxel_number'])
     df['avg_podocyte_volume'] = np.mean(df['podocyte_volume'])
     df['avg_podocyte_equiv_diam_pixels'] = np.mean(df['podocyte_equiv_diam_pixels'])
@@ -290,7 +413,23 @@ def podocyte_avg_statistics(df):
 
 
 def podocyte_statistics(podocyte_regions, centroid_offset, voxel_volume):
-    """"""
+    """Calculate statistics for podocytes.
+
+    Parameters
+    ----------
+    podocyte_regions : List of RegionProperties
+        Region properties for podocytes identified.
+    centroid_offset : tuple of int
+        Coordinate offset of glomeruli subvolume in image.
+    voxel_volume : float
+        Real space volume of a single image voxel.
+
+    Returns
+    -------
+    df : DataFrame or None
+        Pandas dataframe containing podocytes statistics,
+        or None if no regions matching podocyte criteria were identified.
+    """
     df = pd.DataFrame()
     for pod in podocyte_regions:
         real_podocyte_centroid = tuple(pod.centroid[dim] +
@@ -321,7 +460,21 @@ def gradient_of_image(image):
 
 
 def log_file_begins(output_directory, args, timestamp):
-    """Initialize logging and begin writing log file."""
+    """Initialize logging and begin writing log file.
+
+    Parameters
+    ----------
+    output_directory : str
+        Filepath to output directory location.
+    args : argparse arguments
+        Input arguments from user.
+    timestamp :  str
+        Local time as string formatted as day-month-year_hour-minute-AM/PM
+    Returns
+    -------
+    log_filename : str
+        Filepath to output log text file location.
+    """
     log_filename = os.path.join(output_directory, f"log_podo_{timestamp}")
     logging.basicConfig(
         format="%(asctime)s %(message)s",
@@ -344,10 +497,24 @@ def log_file_begins(output_directory, args, timestamp):
     logging.info(f"minimum_glomerular_diameter: {args.minimum_glomerular_diameter[0]}")
     logging.info(f"maximum_glomerular_diameter: {args.maximum_glomerular_diameter[0]}")
     logging.info("======= END OF USER INPUT ARGUMENTS =======")
+    return log_filename
 
 
 def log_file_ends(time_start, total_gloms_counted):
-    """"""
+    """Append runtime information to log.
+
+    Parameters
+    ----------
+    time_start : datetime
+        Datetime object from program start time.
+    total_gloms_counted : int
+        The number of glomeruli identified and analyzed.
+
+    Returns
+    -------
+    time_delta : datetime.timedelta
+        How long the program took to run.
+    """
     time_end = time.time()
     time_delta = time_end - time_start
     minutes, seconds = divmod(time_delta, 60)
@@ -363,6 +530,7 @@ def log_file_ends(time_start, total_gloms_counted):
                      f'{round(minutes_per_glom)} minutes, '
                      f'{round(seconds_per_glom)} seconds.')
     logging.info('Program complete.')
+    return time_delta
 
 
 def marker_controlled_watershed(grayscale_image, marker_coords):
@@ -390,7 +558,18 @@ def marker_controlled_watershed(grayscale_image, marker_coords):
 
 
 def preprocess_glomeruli(glomeruli_view):
-    """Preprocess glomeruli channel image."""
+    """Preprocess glomeruli channel image, return labelled glomeruli image.
+
+    Parameters
+    ----------
+    glomeruli_view : (M, N) ndarray
+        Image array of glomeruli fluorescence channel.
+
+    Returns
+    -------
+    label_image : (M, N) ndarray
+        Label image identifying fluorescence regions in glomeruli channel.
+    """
     glomeruli_view = denoise_image(glomeruli_view)
     threshold = threshold_yen(glomeruli_view)
     label_image = label(glomeruli_view > threshold)
