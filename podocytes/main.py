@@ -21,42 +21,10 @@ from skimage.feature import blob_dog
 
 import tifffile._tifffile  # imported to silence pims warning
 
-# Fix from http://chriskiehl.com/article/packaging-gooey-with-pyinstaller/
-# Commented out because on py3.6 I get the error 'can't have unbuffered TextIO'
-# nonbuffered_stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
-# sys.stdout = nonbuffered_stdout
 
-
-__DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
-             'fluorescence images.')
-
-
-@gooey(default_size=(700, 700),
-       image_dir=os.path.join(os.path.dirname(__file__), 'app-images'),
-       navigation='TABBED')
 def main():
-    # Get user input
-    parser = GooeyParser(prog='Podocyte Profiler', description=__DESCR__)
-    parser.add_argument('input_directory', widget='DirChooser',
-                        help='Folder containing files for processing.')
-    parser.add_argument('output_directory', widget='DirChooser',
-                        help='Folder to save output analysis files.')
-    parser.add_argument('glomeruli_channel_number',
-                        help='Fluorescence channel with glomeruli.',
-                        type=int, default=1)
-    parser.add_argument('podocyte_channel_number',
-                        help='Fluorescence channel with podocytes.',
-                        type=int, default=2)
-    parser.add_argument('minimum_glomerular_diameter',
-                        help='Minimum glomerular diameter (microns).',
-                        type=float, default=30)
-    parser.add_argument('maximum_glomerular_diameter',
-                        help='Maximum glomerular diameter (microns).',
-                        type=float, default=300)
-    parser.add_argument('file_extension',
-                        help='Extension of image file format (.tif, etc.)',
-                        type=str, default='.lif')
-    args = parser.parse_args()
+    # User input arguments
+    args = configure_parser()
     input_directory = ' '.join(args.input_directory)
     output_directory = ' '.join(args.output_directory)
     channel_glomeruli = args.glomeruli_channel_number[0] - 1
@@ -148,6 +116,44 @@ def blob_dog_image(blobs, image_shape):
     for blob in blobs:
         blob_map[int(blob[0]), int(blob[1]), int(blob[2])] = True
     return blob_map
+
+
+__DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
+             'fluorescence images.')
+@gooey(default_size=(700, 700),
+       image_dir=os.path.join(os.path.dirname(__file__), 'app-images'),
+       navigation='TABBED')
+def configure_parser():
+    """Configure parser and add user input arguments.
+
+    Returns
+    -------
+    args : argparse arguments
+        Parsed user input arguments.
+
+    """
+    parser = GooeyParser(prog='Podocyte Profiler', description=__DESCR__)
+    parser.add_argument('input_directory', widget='DirChooser',
+                        help='Folder containing files for processing.')
+    parser.add_argument('output_directory', widget='DirChooser',
+                        help='Folder to save output analysis files.')
+    parser.add_argument('glomeruli_channel_number',
+                        help='Fluorescence channel with glomeruli.',
+                        type=int, default=1)
+    parser.add_argument('podocyte_channel_number',
+                        help='Fluorescence channel with podocytes.',
+                        type=int, default=2)
+    parser.add_argument('minimum_glomerular_diameter',
+                        help='Minimum glomerular diameter (microns).',
+                        type=float, default=30)
+    parser.add_argument('maximum_glomerular_diameter',
+                        help='Maximum glomerular diameter (microns).',
+                        type=float, default=300)
+    parser.add_argument('file_extension',
+                        help='Extension of image file format (.tif, etc.)',
+                        type=str, default='.lif')
+    args = parser.parse_args()
+    return args
 
 
 def create_summary_stats(dataframe):
