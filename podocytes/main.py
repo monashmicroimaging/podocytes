@@ -23,15 +23,11 @@ import tifffile._tifffile  # imported to silence pims warning
 
 
 def main():
-    # User input arguments
-    args = configure_parser()
+    args = configure_parser()  # User input arguments
     input_directory = ' '.join(args.input_directory)
     output_directory = ' '.join(args.output_directory)
-    channel_glomeruli = args.glomeruli_channel_number[0] - 1
-    channel_podocytes = args.podocyte_channel_number[0] - 1
-    min_glom_diameter = args.minimum_glomerular_diameter
-    max_glom_diameter = args.maximum_glomerular_diameter
-    ext = args.file_extension[0]
+    channel_glomeruli = args.glomeruli_channel_number - 1
+    channel_podocytes = args.podocyte_channel_number - 1
 
     # Initialize
     time_start = time.time()
@@ -42,8 +38,8 @@ def main():
             'Podocyte_detailed_stats_'+timestamp+'.csv')
 
     # Get to work
-    filelist = find_files(input_directory, ext)
-    logging.info(f"{len(filelist)} {ext} files found.")
+    filelist = find_files(input_directory, args.file_extension)
+    logging.info(f"{len(filelist)} {args.file_extension} files found.")
     for filename in filelist:
         logging.info(f"Processing file: {filename}")
         images = pims.open(filename)
@@ -56,7 +52,9 @@ def main():
                            images[0].metadata['mpp'] * \
                            images[0].metadata['mppZ']
             glomeruli_labels = preprocess_glomeruli(images[0][..., channel_glomeruli])
-            glom_regions = filter_by_size(glomeruli_labels, min_glom_diameter, max_glom_diameter)
+            glom_regions = filter_by_size(glomeruli_labels,
+                                          args.minimum_glomerular_diameter,
+                                          args.maximum_glomerular_diameter)
             glom_index = 0  # glom labels will not always be sequential after filtering by size
             logging.info(f"{len(glom_regions)} glomeruli identified.")
             if len(glom_regions) > 0:
@@ -497,11 +495,11 @@ def log_file_begins(output_directory, args, timestamp):
     logging.info("========== USER INOUT ARGUMENTS ==========")
     logging.info(f"input_directory: {input_directory}")
     logging.info(f"output_directory: {output_directory}")
-    logging.info(f"file_extension[0]: {args.file_extension[0]}")
+    logging.info(f"file_extension[0]: {args.file_extension}")
     logging.info(f"glomeruli_channel_number: {args.glomeruli_channel_number}")
     logging.info(f"podocyte_channel_number: {args.podocyte_channel_number}")
-    logging.info(f"minimum_glomerular_diameter: {args.minimum_glomerular_diameter[0]}")
-    logging.info(f"maximum_glomerular_diameter: {args.maximum_glomerular_diameter[0]}")
+    logging.info(f"minimum_glomerular_diameter: {args.minimum_glomerular_diameter}")
+    logging.info(f"maximum_glomerular_diameter: {args.maximum_glomerular_diameter}")
     logging.info("======= END OF USER INPUT ARGUMENTS =======")
     return log_filename
 
