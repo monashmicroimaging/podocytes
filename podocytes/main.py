@@ -393,68 +393,6 @@ def glom_statistics(df, glom, glom_index, voxel_volume):
     return df
 
 
-def podocyte_avg_statistics(df):
-    """Average podocyte statistics per glomerulus.
-
-    Parameters
-    ----------
-    df : DataFrame
-        Pandas dataframe containing podocyte statistics for a single glomerulus
-
-    Returns
-    -------
-    df : DataFrame
-        Pandas dataframe containing additional series with aggregate statistics
-        for podocytes per glomerulus, including
-        * the average podocyte voxel number
-        * the average volume in real space of the podocytes
-        * the average equivalent diameter of podocytes (in pixels)
-    """
-    df['avg_podocyte_voxel_number'] = np.mean(df['podocyte_voxel_number'])
-    df['avg_podocyte_volume'] = np.mean(df['podocyte_volume'])
-    df['avg_podocyte_equiv_diam_pixels'] = np.mean(df['podocyte_equiv_diam_pixels'])
-    return df
-
-
-def podocyte_statistics(podocyte_regions, centroid_offset, voxel_volume):
-    """Calculate statistics for podocytes.
-
-    Parameters
-    ----------
-    podocyte_regions : List of RegionProperties
-        Region properties for podocytes identified.
-    centroid_offset : tuple of int
-        Coordinate offset of glomeruli subvolume in image.
-    voxel_volume : float
-        Real space volume of a single image voxel.
-
-    Returns
-    -------
-    df : DataFrame or None
-        Pandas dataframe containing podocytes statistics,
-        or None if no regions matching podocyte criteria were identified.
-    """
-    df = pd.DataFrame()
-    for pod in podocyte_regions:
-        real_podocyte_centroid = tuple(pod.centroid[dim] +
-                                       centroid_offset[dim]
-                                       for dim in range(len(pod.centroid)))
-        # Add interesting statistics to the dataframe
-        contents = {'podocyte_label_number': pod.label,
-                    'podocyte_voxel_number': pod.area,
-                    'podocyte_volume': (pod.area * voxel_volume),
-                    'podocyte_equiv_diam_pixels': pod.equivalent_diameter,
-                    'podocyte_centroid_x': real_podocyte_centroid[2],
-                    'podocyte_centroid_y': real_podocyte_centroid[1],
-                    'podocyte_centroid_z': real_podocyte_centroid[0]}
-        # Add individual podocyte statistics to dataframe
-        df = df.append(contents, ignore_index=True, sort=False)
-    if len(df) > 0:
-        return df
-    else:
-        return None
-
-
 def gradient_of_image(image):
     """Direction agnostic."""
     grad = np.gradient(image)  # gradients for individual directions
@@ -555,6 +493,68 @@ def marker_controlled_watershed(grayscale_image, marker_coords):
     wshed = watershed(gradient_image, label(seeds))
     wshed[wshed == np.max(seeds)] = 0  # set background area to zero
     return wshed
+
+
+def podocyte_avg_statistics(df):
+    """Average podocyte statistics per glomerulus.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Pandas dataframe containing podocyte statistics for a single glomerulus
+
+    Returns
+    -------
+    df : DataFrame
+        Pandas dataframe containing additional series with aggregate statistics
+        for podocytes per glomerulus, including
+        * the average podocyte voxel number
+        * the average volume in real space of the podocytes
+        * the average equivalent diameter of podocytes (in pixels)
+    """
+    df['avg_podocyte_voxel_number'] = np.mean(df['podocyte_voxel_number'])
+    df['avg_podocyte_volume'] = np.mean(df['podocyte_volume'])
+    df['avg_podocyte_equiv_diam_pixels'] = np.mean(df['podocyte_equiv_diam_pixels'])
+    return df
+
+
+def podocyte_statistics(podocyte_regions, centroid_offset, voxel_volume):
+    """Calculate statistics for podocytes.
+
+    Parameters
+    ----------
+    podocyte_regions : List of RegionProperties
+        Region properties for podocytes identified.
+    centroid_offset : tuple of int
+        Coordinate offset of glomeruli subvolume in image.
+    voxel_volume : float
+        Real space volume of a single image voxel.
+
+    Returns
+    -------
+    df : DataFrame or None
+        Pandas dataframe containing podocytes statistics,
+        or None if no regions matching podocyte criteria were identified.
+    """
+    df = pd.DataFrame()
+    for pod in podocyte_regions:
+        real_podocyte_centroid = tuple(pod.centroid[dim] +
+                                       centroid_offset[dim]
+                                       for dim in range(len(pod.centroid)))
+        # Add interesting statistics to the dataframe
+        contents = {'podocyte_label_number': pod.label,
+                    'podocyte_voxel_number': pod.area,
+                    'podocyte_volume': (pod.area * voxel_volume),
+                    'podocyte_equiv_diam_pixels': pod.equivalent_diameter,
+                    'podocyte_centroid_x': real_podocyte_centroid[2],
+                    'podocyte_centroid_y': real_podocyte_centroid[1],
+                    'podocyte_centroid_z': real_podocyte_centroid[0]}
+        # Add individual podocyte statistics to dataframe
+        df = df.append(contents, ignore_index=True, sort=False)
+    if len(df) > 0:
+        return df
+    else:
+        return None
 
 
 def preprocess_glomeruli(glomeruli_view):
