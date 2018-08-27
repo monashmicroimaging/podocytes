@@ -66,29 +66,6 @@ def main():
                                          time_start)
 
 
-def blob_dog_image(blobs, image_shape):
-    """Create boolean image where pixels labelled True
-    match coordinates returned from skimage blob_dog() function.
-
-    Parameters
-    ----------
-    blobs : (n, image.ndim + 1) ndarray
-        Input to blob_dog_image is the output of skimage.feature.blog_dog()
-    image_shape : tuple of int
-        Shape of image array used to generate input parameter blobs.
-
-    Returns
-    -------
-    blob_map : 2D or 3D ndarray
-        Boolean array shaped like image_shape,
-        with blob coordinate locations represented by True values.
-    """
-    blob_map = np.zeros(image_shape).astype(np.bool)
-    for blob in blobs:
-        blob_map[int(blob[0]), int(blob[1]), int(blob[2])] = True
-    return blob_map
-
-
 __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
              'fluorescence images.')
 @gooey(default_size=(700, 700),
@@ -428,11 +405,34 @@ def marker_controlled_watershed(grayscale_image, marker_coords):
         Label image of watershed results.
     """
     gradient_image = gradient_of_image(grayscale_image)
-    seeds = blob_dog_image(marker_coords, grayscale_image.shape)
-    seeds[0] = np.max(seeds) + 1  # must have seed for the background area too
-    wshed = watershed(gradient_image, label(seeds))
+    seeds = markers_from_blob_coords(marker_coords, grayscale_image.shape)
+    wshed = watershed(gradient_image, seeds)
     wshed[wshed == np.max(seeds)] = 0  # set background area to zero
     return wshed
+
+
+def markers_from_blob_coords(blobs, image_shape):
+    """Make watershed markers from scikit-image blob_dog coordinates.
+
+    Parameters
+    ----------
+    blobs : (n, image.ndim + 1) ndarray
+        Input is the output of skimage.feature.blog_dog()
+    image_shape : tuple of int
+        Shape of image array used to generate input parameter blobs.
+
+    Returns
+    -------
+    markers : 2D or 3D ndarray
+        Boolean array shaped like image_shape,
+        with blob coordinate locations represented by True values.
+    """
+    markers = np.zeros(image_shape, dtype=bool)
+    markers[tuple(blobs[:, :-1].T.astype(int))] = True
+    # This assumes the first voxel is part of the background
+    markers[0] = np.max(markers) + 1  # must have seed for the background area too
+    markers = label(markers)
+    return markers
 
 
 def podocyte_avg_statistics(df):
