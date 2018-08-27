@@ -67,7 +67,7 @@ def main():
 
 __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
              'fluorescence images.')
-@gooey(default_size=(900, 700),
+@gooey(default_size=(800, 700),
        image_dir=os.path.join(os.path.dirname(__file__), 'app-images'),
        navigation='TABBED')
 def configure_parser():
@@ -543,6 +543,7 @@ def process_image_series(images, filename, args):
     voxel_volume = images[0].metadata['mpp'] * \
                    images[0].metadata['mpp'] * \
                    images[0].metadata['mppZ']
+    logging.info(f"Voxel volume in real space: {voxel_volume}")
     glomeruli_labels = preprocess_glomeruli(images[0][..., channel_glomeruli])
     glom_regions = filter_by_size(glomeruli_labels,
                                   args.minimum_glomerular_diameter,
@@ -609,6 +610,7 @@ def summarize_statistics(detailed_stats, output_filename, time_start):
                            'avg_podocyte_volume',
                            'podocyte_density']
         summary_stats = detailed_stats[summary_columns].drop_duplicates()
+        summary_stats.reset_index(drop=True, inplace=True)
         summary_stats.to_csv(output_filename)
         logging.info(f'Saved summary statistics to file: {output_filename}')
         total_gloms_counted = len(summary_stats)
