@@ -313,6 +313,7 @@ def glom_statistics(df, glom, glom_index, voxel_volume):
         Integer label for glomerulus.
     voxel_volume : float
         Real space volume of a single image voxel.
+
     Returns
     -------
     df : DataFrame
