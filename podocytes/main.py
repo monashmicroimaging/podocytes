@@ -109,7 +109,7 @@ def crop_region_of_interest(image, bbox, margin=0, pad_mode='mean'):
 
     Parameters
     ----------
-    image : (N, M) ndarray
+    image : 3D ndarray
         The input image.
     bbox : tuple
         Bounding box coordinates as tuple.
@@ -126,7 +126,7 @@ def crop_region_of_interest(image, bbox, margin=0, pad_mode='mean'):
 
     Returns
     -------
-    roi_image : (N, M) ndarray
+    roi_image : 3D ndarray
         The cropped output array.
     """
     ndims = image.ndim
@@ -159,12 +159,12 @@ def denoise_image(image):
 
     Parameters
     ----------
-    image : (N, M) ndarray
+    image : 3D ndarray
         Original image data from a single fluorescence channel.
 
     Returns
     -------
-    denoised : (N, M) ndarray
+    denoised : 3D ndarray
         Image denoised by slight gaussian blur.
     """
     xy_pixel_size = image.metadata['mpp']
@@ -188,7 +188,7 @@ def filter_by_size(label_image, min_diameter, max_diameter):
 
     Parameters
     ----------
-    label_image : (N, M) ndarray
+    label_image : 3D ndarray
         Label image
     min_diameter : float
         Minimum expected size (equivalent diameter of labelled voxels)
@@ -241,7 +241,7 @@ def find_podocytes(podocyte_image, glomeruli_region,
 
     Parameters
     ----------
-    podocyte_image : (M, N) ndarray
+    podocyte_image : 3D ndarray
         Image of podocyte fluorescence.
     glomeruli_region : RegionProperties
         Single glomeruli region, found with scikit-image regionprops.
@@ -258,7 +258,7 @@ def find_podocytes(podocyte_image, glomeruli_region,
         Region properties for podocytes identified.
     centroid_offset : tuple of int
         Coordinate offset of glomeruli subvolume in image.
-    wshed : (M, N) ndarray
+    wshed : 3D ndarray
         Watershed image showing podoyctes.
     """
     bbox = glomeruli_region.bbox  # bounding box coordinates
@@ -311,7 +311,7 @@ def glom_statistics(df, glom, glom_index, voxel_volume):
 
 
 def gradient_of_image(image):
-    """Direction agnostic."""
+    """Take the maximum absolute gradient of the image in all directions."""
     grad = np.gradient(image)  # gradients for individual directions
     grad = np.stack(grad, axis=-1)  # from list of arrays to single numpy array
     gradient_image = np.sum(abs(grad), axis=-1)
@@ -393,15 +393,15 @@ def marker_controlled_watershed(grayscale_image, marker_coords):
 
     Parameters
     ----------
-    grayscale_image : (M,N) ndarray
-
-    marker_coords : (M,N) ndarray
+    grayscale_image : 3D ndarray
+        Input image to apply watershed on.
+    marker_coords : 3D ndarray
         Array where the first consecutive elements in each row
         are the spatial coordinates of the markers.
 
     Returns
     -------
-    wshed : (M,N) ndarray
+    wshed : 3D ndarray
         Label image of watershed results.
     """
     gradient_image = gradient_of_image(grayscale_image)
@@ -502,12 +502,12 @@ def preprocess_glomeruli(glomeruli_view):
 
     Parameters
     ----------
-    glomeruli_view : (M, N) ndarray
+    glomeruli_view : 3D ndarray
         Image array of glomeruli fluorescence channel.
 
     Returns
     -------
-    label_image : (M, N) ndarray
+    label_image : 3D ndarray
         Label image identifying fluorescence regions in glomeruli channel.
     """
     glomeruli_view = denoise_image(glomeruli_view)
