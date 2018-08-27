@@ -24,7 +24,7 @@ import tifffile._tifffile  # imported to silence pims warning
 
 def main():
     args = configure_parser()  # User input arguments
-    # User input arguments are expected to have 1-based indesxing
+    # User input arguments are expected to have 1-based indexing
     # we convert to 0-based indexing for the python program logic.
     channel_glomeruli = args.glomeruli_channel_number - 1
     channel_podocytes = args.podocyte_channel_number - 1
