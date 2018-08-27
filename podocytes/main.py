@@ -251,7 +251,8 @@ def find_files(input_directory, ext):
     filelist = []
     for root, _, files in os.walk(input_directory):
         for f in files:
-            if f.endswith(ext):
+            # ignore hidden files
+            if f.endswith(ext) and not f.startswith('.'):
                 filename = os.path.join(root, f)
                 filelist.append(filename)
     return filelist
