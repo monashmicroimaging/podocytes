@@ -181,10 +181,9 @@ def denoise_image(image):
 
 
 def filter_by_size(label_image, min_diameter, max_diameter):
-    """Identify objects within a certain size range,
-    and return those regions as a list.
+    """Identify objects within a certain size range & return those regions.
 
-    Uses the equivalent_diameter attribute of regionprops.
+    Uses the equivalent_diameter attribute of regionprops to check size.
 
     Parameters
     ----------
@@ -277,8 +276,7 @@ def find_podocytes(podocyte_image, glomeruli_region,
 
 
 def glom_statistics(df, glom, glom_index, voxel_volume):
-    """Add glomerular information to dataframe containing podocyte statistics
-    for a single glomerulus.
+    """Add glomerulus information to podocyte statistics for a single glom.
 
     Parameters
     ----------
