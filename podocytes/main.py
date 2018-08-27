@@ -35,7 +35,7 @@ def main():
     log_file_begins(args, timestamp)
     detailed_stats = pd.DataFrame()
     output_filename_detailed_stats = os.path.join(args.output_directory,
-            'Podocyte_detailed_stats_'+timestamp+'.csv')
+            'Podocyte_detailed_stats_' + timestamp + '.csv')
 
     # Get to work
     filelist = find_files(args.input_directory, args.file_extension)
@@ -60,7 +60,7 @@ def main():
                 detailed_stats.to_csv(output_filename_detailed_stats)
     # Summarize output and write to file
     output_filename_summary_stats = os.path.join(args.output_directory,
-        'Podocyte_summary_stats_'+timestamp+'.csv')
+        'Podocyte_summary_stats_' + timestamp + '.csv')
     summary_stats = summarize_statistics(detailed_stats,
                                         output_filename_summary_stats,
                                         time_start)
