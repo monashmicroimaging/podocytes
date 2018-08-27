@@ -42,7 +42,7 @@ def main():
     logging.info(f"{len(filelist)} {args.file_extension} files found.")
     for filename in filelist:
         logging.info(f"Processing file: {filename}")
-        images = pims.open(filename)
+        images = pims.Bioformats(filename)
         for im_series_num in range(images.metadata.ImageCount()):
             logging.info(f"{images.metadata.ImageID(im_series_num)}")
             logging.info(f"{images.metadata.ImageName(im_series_num)}")
