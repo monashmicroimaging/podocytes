@@ -4,22 +4,22 @@ import logging
 
 import numpy as np
 import pandas as pd
-import matplotlib as mpl
-mpl.use('wxagg')
+
 from skimage import io
-import pims
-import matplotlib.pyplot as plt
-
-from gooey.python_bindings.gooey_decorator import Gooey as gooey
-from gooey.python_bindings.gooey_parser import GooeyParser
-
 from skimage.util import invert
 from skimage.filters import threshold_otsu, threshold_yen, gaussian
 from skimage.morphology import ball, watershed, binary_closing, binary_dilation
 from skimage.measure import label, regionprops
 from skimage.feature import blob_dog
 
+from gooey.python_bindings.gooey_decorator import Gooey as gooey
+from gooey.python_bindings.gooey_parser import GooeyParser
+
+import pims
 import tifffile._tifffile  # imported to silence pims warning
+
+import matplotlib as mpl
+mpl.use('wxagg')
 
 
 def main():
