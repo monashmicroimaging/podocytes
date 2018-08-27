@@ -60,10 +60,10 @@ def main():
                 detailed_stats.to_csv(output_filename_detailed_stats)
     # Summarize output and write to file
     output_filename_summary_stats = os.path.join(args.output_directory,
-        'Podocyte_summary_stats_' + timestamp + '.csv')
+            'Podocyte_summary_stats_' + timestamp + '.csv')
     summary_stats = summarize_statistics(detailed_stats,
-                                        output_filename_summary_stats,
-                                        time_start)
+                                         output_filename_summary_stats,
+                                         time_start)
 
 
 def blob_dog_image(blobs, image_shape):
