@@ -33,11 +33,9 @@ def main():
     time_start = time.time()
     timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
     log_file_begins(args, timestamp)
-    detailed_stats = pd.DataFrame()
-    output_filename_detailed_stats = os.path.join(args.output_directory,
-            'Podocyte_detailed_stats_' + timestamp + '.csv')
 
     # Get to work
+    stats_list = []
     filelist = find_files(args.input_directory, args.file_extension)
     logging.info(f"{len(filelist)} {args.file_extension} files found.")
     for filename in filelist:
@@ -53,19 +51,15 @@ def main():
             logging.info(f"{images.metadata.ImageName(im_series_num)}")
             images.series = im_series_num
             images.bundle_axes = 'zyxc'
-            single_image_stats = process_image_series(images, args)
-            # add image details to dataframe
-            if single_image_stats is not None:
-                single_image_stats['image_series_num'] = images.metadata.ImageID(im_series_num)
-                single_image_stats['image_series_name'] = images.metadata.ImageName(im_series_num)
-                single_image_stats['image_filename'] = filename
-                detailed_stats = detailed_stats.append(single_image_stats,
-                                                       ignore_index=True,
-                                                       sort=False)
-                detailed_stats.to_csv(output_filename_detailed_stats)
+            single_image_stats = process_image_series(images, filename, args)
+            stats_list.append(single_image_stats)
     # Summarize output and write to file
+    output_filename_detailed_stats = os.path.join(args.output_directory,
+            'Podocyte_detailed_stats_' + timestamp + '.csv')
     output_filename_summary_stats = os.path.join(args.output_directory,
             'Podocyte_summary_stats_' + timestamp + '.csv')
+    detailed_stats = pd.concat(stats_list, ignore_index=True, copy=False)
+    detailed_stats.to_csv(output_filename_detailed_stats)
     summary_stats = summarize_statistics(detailed_stats,
                                          output_filename_summary_stats,
                                          time_start)
@@ -73,7 +67,7 @@ def main():
 
 __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
              'fluorescence images.')
-@gooey(default_size=(700, 700),
+@gooey(default_size=(900, 700),
        image_dir=os.path.join(os.path.dirname(__file__), 'app-images'),
        navigation='TABBED')
 def configure_parser():
@@ -479,25 +473,31 @@ def podocyte_statistics(podocyte_regions, centroid_offset, voxel_volume):
         Pandas dataframe containing podocytes statistics,
         or None if no regions matching podocyte criteria were identified.
     """
-    df = pd.DataFrame()
+    column_names = ['podocyte_label_number',
+                    'podocyte_voxel_number',
+                    'podocyte_volume',
+                    'podocyte_equiv_diam_pixels',
+                    'podocyte_centroid_x',
+                    'podocyte_centroid_y',
+                    'podocyte_centroid_z']
+    contents_list = []
     for pod in podocyte_regions:
         real_podocyte_centroid = tuple(pod.centroid[dim] +
                                        centroid_offset[dim]
                                        for dim in range(len(pod.centroid)))
         # Add interesting statistics to the dataframe
-        contents = {'podocyte_label_number': pod.label,
-                    'podocyte_voxel_number': pod.area,
-                    'podocyte_volume': (pod.area * voxel_volume),
-                    'podocyte_equiv_diam_pixels': pod.equivalent_diameter,
-                    'podocyte_centroid_x': real_podocyte_centroid[2],
-                    'podocyte_centroid_y': real_podocyte_centroid[1],
-                    'podocyte_centroid_z': real_podocyte_centroid[0]}
+        # Centroid coords are (x, y, z) and NOT (plane, row, column)
+        contents = [pod.label,
+                    pod.area,
+                    pod.area * voxel_volume,
+                    pod.equivalent_diameter,
+                    real_podocyte_centroid[2],
+                    real_podocyte_centroid[1],
+                    real_podocyte_centroid[0]]
         # Add individual podocyte statistics to dataframe
-        df = df.append(contents, ignore_index=True, sort=False)
-    if len(df) > 0:
-        return df
-    else:
-        return None
+        contents_list.append(contents)
+    df = pd.DataFrame(contents_list, columns=column_names)
+    return df
 
 
 def preprocess_glomeruli(glomeruli_view):
@@ -519,12 +519,15 @@ def preprocess_glomeruli(glomeruli_view):
     return label_image
 
 
-def process_image_series(images, args):
+def process_image_series(images, filename, args):
     """Process a single image series to count the glomeruli and podocytes.
 
     Parameters
     ----------
     images : pims image object, where images[0] is the image ndarray.
+        Input image plus metadata.
+    filename : str
+        Input image filename.
     args : user input arguments
 
     Returns
@@ -532,7 +535,7 @@ def process_image_series(images, args):
     single_image_stats : DataFrame
 
     """
-    single_image_stats = pd.DataFrame()
+    df_list = []
     # User input arguments are expected to have 1-based indesxing
     # we convert to 0-based indexing for the python program logic.
     channel_glomeruli = args.glomeruli_channel_number - 1
@@ -555,16 +558,20 @@ def process_image_series(images, args):
             df = podocyte_statistics(podocyte_regions,
                                      centroid_offset,
                                      voxel_volume)
-            if df is None: continue
             logging.info(f"{len(df)} podocytes found for glomerulus " +
-                         f"with centroid (x,y,z): (" +
+                         f"with centroid voxel coord (x,y,z): (" +
                          f"{int(glom.centroid[2])}, " +
                          f"{int(glom.centroid[1])}, " +
                          f"{int(glom.centroid[0])})")
-            df = podocyte_avg_statistics(df)
-            df = glom_statistics(df, glom, glom_index, voxel_volume)
-            single_image_stats = single_image_stats.append(df, ignore_index=True, sort=False)
-            glom_index += 1
+            if len(df) > 0:
+                df = podocyte_avg_statistics(df)
+                df = glom_statistics(df, glom, glom_index, voxel_volume)
+                df['image_series_num'] = images.metadata.ImageID(images.series)
+                df['image_series_name'] = images.metadata.ImageName(images.series)
+                df['image_filename'] = filename
+                glom_index += 1
+                df_list.append(df)
+    single_image_stats = pd.concat(df_list, ignore_index=True, copy=False)
     return single_image_stats
 
 
