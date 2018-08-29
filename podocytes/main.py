@@ -42,9 +42,9 @@ def main():
         logging.info(f"Processing file: {filename}")
         try:
             images = pims.Bioformats(filename)
-        except Exception:
-            logging.warning(f"Exception {Exception} raised "
-                            f"when trying to open {filename}")
+        except Exception as err:
+            logging.warning(f'Exception raised when trying to open {filename}:')
+            logging.warning(f'{type(err)[8:-2]}: {err}')
             continue  # move on to the next file
         for im_series_num in range(images.metadata.ImageCount()):
             logging.info(f"{images.metadata.ImageID(im_series_num)}")
