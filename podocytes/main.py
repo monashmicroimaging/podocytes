@@ -427,7 +427,7 @@ def markers_from_blob_coords(blobs, image_shape):
     markers = np.zeros(image_shape, dtype=bool)
     markers[tuple(blobs[:, :-1].T.astype(int))] = True
     # This assumes the first voxel is part of the background
-    markers[0] = np.max(markers) + 1  # must have seed for the background area too
+    markers.ravel()[0] = True  # must have seed for background area
     markers = label(markers)
     return markers
 
