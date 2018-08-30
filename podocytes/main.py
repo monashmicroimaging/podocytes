@@ -553,9 +553,8 @@ def process_image_series(images, filename, args):
     if len(glom_regions) > 0:
         podocytes_view = denoise_image(images[0][..., channel_podocytes])
         for glom in glom_regions:
-            podocyte_regions, centroid_offset, wshed = find_podocytes(
-                podocytes_view,
-                glom)
+            podocyte_regions, centroid_offset, wshed = \
+                    find_podocytes(podocytes_view, glom)
             df = podocyte_statistics(podocyte_regions,
                                      centroid_offset,
                                      voxel_volume)
