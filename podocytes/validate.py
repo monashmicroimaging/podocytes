@@ -74,7 +74,7 @@ def main():
         glomeruli_view = images[0][..., channel_glomeruli]
         podocytes_view = images[0][..., channel_podocytes]
 
-        ground_truth_df = get_marker_coords(xml_tree, 2)
+        ground_truth_df = marker_coords(xml_tree, 2)
         spatial_columns = ['MarkerZ', 'MarkerY', 'MarkerX']
         gt_image = ground_truth_image(ground_truth_df[spatial_columns].values,
                                       glomeruli_view.shape)
@@ -211,7 +211,7 @@ def match_names(images, xml_image_name, basename):
     return None
 
 
-def get_marker_coords(tree, n_channels):
+def marker_coords(tree, n_channels):
     """Parse CellCounter xml"""
     df = pd.DataFrame()
     image_name = tree.find('.//Image_Filename').text
