@@ -43,8 +43,8 @@ def main():
         try:
             images = pims.Bioformats(filename)
         except Exception as err:
-            logging.warning(f'Exception raised when trying to open {filename}:')
-            logging.warning(f'{type(err)[8:-2]}: {err}')
+            logging.warning(f'Exception raised when trying to open {filename}')
+            logging.warning(f'{type(err)}: {err}')
             continue  # move on to the next file
         for im_series_num in range(images.metadata.ImageCount()):
             logging.info(f"{images.metadata.ImageID(im_series_num)}")
@@ -58,11 +58,17 @@ def main():
             'Podocyte_detailed_stats_' + timestamp + '.csv')
     output_filename_summary_stats = os.path.join(args.output_directory,
             'Podocyte_summary_stats_' + timestamp + '.csv')
-    detailed_stats = pd.concat(stats_list, ignore_index=True, copy=False)
-    detailed_stats.to_csv(output_filename_detailed_stats)
-    summary_stats = summarize_statistics(detailed_stats,
-                                         output_filename_summary_stats,
-                                         time_start)
+    try:
+        detailed_stats = pd.concat(stats_list, ignore_index=True, copy=False)
+    except ValueError as err:
+        logging.warning(f'No glomeruli identified in this image.')
+        logging.warning(f'{type(err)}: {err}')
+        return None
+    else:
+        detailed_stats.to_csv(output_filename_detailed_stats)
+        summary_stats = summarize_statistics(detailed_stats,
+                                             output_filename_summary_stats,
+                                             time_start)
 
 
 __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
@@ -571,8 +577,13 @@ def process_image_series(images, filename, args):
                 df['image_filename'] = filename
                 glom_index += 1
                 df_list.append(df)
-    single_image_stats = pd.concat(df_list, ignore_index=True, copy=False)
-    return single_image_stats
+    try:
+        single_image_stats = pd.concat(df_list, ignore_index=True, copy=False)
+    except ValueError as err:
+        logging.warning(f'No glomeruli identified.')
+        logging.warning(f'{type(err)}: {err}')
+    else:
+        return single_image_stats
 
 
 def summarize_statistics(detailed_stats, output_filename, time_start):
