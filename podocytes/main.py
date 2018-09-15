@@ -44,7 +44,7 @@ def main():
             images = pims.Bioformats(filename)
         except Exception as err:
             logging.warning(f'Exception raised when trying to open {filename}')
-            logging.warning(f'{type(err)}: {err}')
+            logging.warning(f'{str(type(err))[8:-2]}: {err}')
             continue  # move on to the next file
         for im_series_num in range(images.metadata.ImageCount()):
             logging.info(f"{images.metadata.ImageID(im_series_num)}")
@@ -62,7 +62,7 @@ def main():
         detailed_stats = pd.concat(stats_list, ignore_index=True, copy=False)
     except ValueError as err:
         logging.warning(f'No glomeruli identified in this image.')
-        logging.warning(f'{type(err)}: {err}')
+        logging.warning(f'{str(type(err))[8:-2]}: {err}')
         return None
     else:
         detailed_stats.to_csv(output_filename_detailed_stats)
@@ -581,7 +581,7 @@ def process_image_series(images, filename, args):
         single_image_stats = pd.concat(df_list, ignore_index=True, copy=False)
     except ValueError as err:
         logging.warning(f'No glomeruli identified.')
-        logging.warning(f'{type(err)}: {err}')
+        logging.warning(f'{str(type(err))[8:-2]}: {err}')
     else:
         return single_image_stats
 
