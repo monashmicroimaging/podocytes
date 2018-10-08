@@ -22,15 +22,16 @@ from skimage.measure import label, regionprops
 from skimage.feature import blob_dog
 
 from main import preprocess_glomeruli, filter_by_size, \
-                 crop_region_of_interest, blob_dog_image, denoise_image, \
-                 gradient_of_image, marker_controlled_watershed
+                 crop_region_of_interest, markers_from_blob_coords, \
+                 denoise_image, gradient_of_image,\
+                 marker_controlled_watershed
 
 def main():
     # user input
-    input_counts_dir = "/Users/genevieb/Documents/ImageAnalysis/kidney_glomeruli/input_data/SP8/Postnatal21day_mice/markers_21daygloms/"
-    input_image_dir = "/Users/genevieb/Documents/ImageAnalysis/kidney_glomeruli/input_data/SP8/Postnatal21day_mice/input_files/"
-    output_dir = "/Users/genevieb/Documents/ImageAnalysis/kidney_glomeruli/input_data/SP8/Postnatal21day_mice/input_files/output_27June2018/validate//"
-    image_filename = os.path.join(input_image_dir, "51571 and 51575.lif")
+    input_counts_dir = "/Users/genevieb/Desktop/podo_tests/validation/Markers/51745/"
+    input_image_dir = "/Users/genevieb/Desktop/podo_tests/validation/Images/51745/"
+    output_dir = "/Users/genevieb/Desktop/podo_tests/validation/validation_image_results/51745/"
+
     channel_glomeruli = 0
     channel_podocytes = 1
     min_glom_diameter = 30
@@ -49,28 +50,37 @@ def main():
         ])
 
     # images
-    images = pims.open(image_filename)
-    logging.info(f"Processing file: {image_filename}")
+    image_filenames = []
+    for root, dirs, files in os.walk(input_image_dir):
+        for file in files:
+            image_filenames.append(root + file)
 
     # CellCounter xml
     cellcounter_filelist = find_all_count_files(input_counts_dir)
     logging.info(f"Found {len(cellcounter_filelist)} xml count files. ")
     logging.info(f"{cellcounter_filelist}")
+
+
     for xml_filename in cellcounter_filelist:
         xml_tree = ET.parse(xml_filename)
         xml_image_name = xml_tree.find('.//Image_Filename').text
-
-        image_series_index = match_names(images,
-                                         xml_image_name,
-                                         os.path.basename(image_filename)
-                                         )
-        if image_series_index == None:
-            logging.info("No matching image series found!")
-            continue
-        logging.info(f"{images.metadata.ImageID(image_series_index)}")
-        logging.info(f"{images.metadata.ImageName(image_series_index)}")
-        images.series = image_series_index
+        image_filename = match_filenames(image_filenames, xml_image_name)
+        images = pims.Bioformats(image_filename)
+        logging.info(f"Processing file: {image_filename}")
         images.bundle_axes = 'zyxc'
+
+        #image_series_index = match_names(images,
+        #                                 xml_image_name,
+        #                                 os.path.basename(image_filename)
+        #                                 )
+        #if image_series_index == None:
+        #    logging.info("No matching image series found!")
+        #    continue
+        #logging.info(f"{images.metadata.ImageID(image_series_index)}")
+        #logging.info(f"{images.metadata.ImageName(image_series_index)}")
+        #images.series = image_series_index
+        #images.bundle_axes = 'zyxc'
+
         glomeruli_view = images[0][..., channel_glomeruli]
         podocytes_view = images[0][..., channel_podocytes]
 
@@ -80,12 +90,15 @@ def main():
                                       glomeruli_view.shape)
 
         glomeruli_labels = preprocess_glomeruli(glomeruli_view)
-        io.imsave(os.path.join(output_dir, output_fname+f"_Glomeruli_Labels.tif"), glomeruli_labels, imagej=True)
+        output_filename_all_glom_labels = os.path.join(output_dir,
+            os.path.splitext(xml_image_name)[0] + "_all_glom_labels.tif")
+        io.imsave(output_filename_all_glom_labels,
+                  glomeruli_labels.astype(np.uint8))
         glom_regions = filter_by_size(glomeruli_labels,
                                       min_glom_diameter,
                                       max_glom_diameter)
-        #io.imsave(os.path.join(output_dir, "glomeruli_labels.tif"), glomeruli_labels)
         logging.info(f"{len(glom_regions)} glomeruli identified.")
+        logging.info(f"(glom_regions) - label of the selected glomerulus")
         for glom in glom_regions:
             bbox = glom.bbox
             cropping_margin = 10  # pixels
@@ -104,8 +117,7 @@ def main():
                                                    margin=cropping_margin,
                                                    pad_mode='zeros')
             if np.sum(gt_subvolume) == 0:
-                # the counts were not from this glomerulus
-                continue
+                continue  # since these counts were not from this glomerulus
             podocytes_view = denoise_image(podocytes_view)
             podo_subvolume = crop_region_of_interest(podocytes_view,
                                                    bbox,
@@ -199,16 +211,25 @@ def find_all_count_files(input_directory):
     return filelist
 
 
+def match_filenames(image_filenames, xml_image_name):
+    for fname in image_filenames:
+        if os.path.basename(fname) in xml_image_name:
+            return fname
+    return None
+
+
 def match_names(images, xml_image_name, basename):
     n_image_series = images.metadata.ImageCount()
     for i in range(n_image_series):
         images.series = i
         name = images.metadata.ImageName(i)
-        full_name = basename + " - " + name
-        if xml_image_name == full_name:
-            return i
-    # if no match found
-    return None
+        multi_series_name = basename + " - " + name
+        if xml_image_name == name:
+            return i  # return index of matching image
+        elif xml_image_name == multi_series_name:
+            return i  # return index of matching image
+        else:
+            return None  # no match found
 
 
 def marker_coords(tree, n_channels):
