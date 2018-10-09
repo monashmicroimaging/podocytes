@@ -15,7 +15,6 @@ gooey_images = Tree(os.path.join(gooey_root, 'images'), prefix='gooey/images')
 # Get loci_tools.jar; ensure it's packaged in a.binaries, below
 from pims import bioformats
 loci_jar_full_path = bioformats._download_jar(version='5.9.2')
-loci_dir, loci_file = os.path.split(loci_jar_full_path)
 
 block_cipher = None
 
@@ -23,6 +22,7 @@ binaries = []
 
 datas = []
 datas += PyInstaller.utils.hooks.collect_data_files("skimage.io._plugins")
+datas += PyInstaller.utils.hooks.collect_data_files("pims")
 datas += [('podocytes/app-images/*', 'podocytes/app-images')]
 
 hiddenimports = []
@@ -88,7 +88,6 @@ java_pathname = os.path.join(os.environ["JAVA_HOME"], "jre/lib/server/libjvm.dyl
 a.binaries += [
     ("libpng16.16.dylib", libpng_pathname, "BINARY"),
     ("libjvm.dylib", java_pathname, "BINARY"),
-    (loci_file, loci_dir, "BINARY")
 ]
 
 exclude_binaries = [
