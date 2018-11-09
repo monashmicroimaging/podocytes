@@ -1,65 +1,19 @@
 name: podo
 channels:
-  - defaults
-  - conda-forge
+- defaults
+- conda-forge
 dependencies:
-  - altgraph=0.15=py_0
-  - blas=1.1=openblas
-  - ca-certificates=2018.4.16=0
-  - certifi=2018.4.16=py36_0
-  - cloudpickle=0.5.3=py_0
-  - cycler=0.10.0=py36_0
-  - cython=0.28.3=py36_0
-  - dask-core=0.17.5=py_0
-  - decorator=4.3.0=py_0
-  - freetype=2.8.1=0
-  - imageio=2.3.0=py36_0
-  - jinja2=2.10=py36_0
-  - jpeg=9b=2
-  - jpype1=0.6.3=py36_0
-  - kiwisolver=1.0.1=py36_1
-  - libgfortran=3.0.0=0
-  - libpng=1.6.34=0
-  - libtiff=4.0.9=0
-  - macholib=1.8=py_0
-  - markupsafe=1.0=py36_0
-  - matplotlib=2.2.2=py36_1
-  - ncurses=5.9=10
-  - networkx=2.1=py36_0
-  - numpy=1.14.3=py36_blas_openblas_200
-  - olefile=0.45.1=py36_0
-  - openblas=0.2.20=8
-  - openssl=1.0.2o=0
-  - pandas=0.23.0=py36_1
-  - pillow=5.1.0=py36_0
-  - pims=0.4.1=py_1
-  - pip=9.0.3=py36_0
-  - pycrypto=2.6.1=py36_1
-  - pyinstaller=3.3.1=py36_0
-  - pyparsing=2.2.0=py36_0
-  - python=3.6.5=1
-  - python-dateutil=2.7.3=py_0
-  - python.app=1.2=py36_0
-  - pytz=2018.4=py_0
-  - pywavelets=0.5.2=py36_1
-  - readline=7.0=0
-  - scikit-image=0.14.0=py36hfc679d8_1
-  - scipy=1.1.0=py36_blas_openblas_200
-  - setuptools=39.2.0=py36_0
-  - six=1.11.0=py36_1
-  - slicerator=0.9.8=py_1
-  - sqlite=3.20.1=2
-  - tifffile=0.14.0=py36_1
-  - tk=8.6.7=0
-  - toolz=0.9.0=py_0
-  - tornado=5.0.2=py36_0
-  - wheel=0.31.0=py36_0
-  - xz=5.2.3=0
-  - zlib=1.2.11=h470a237_3
-  - pip:
-    - dask==0.17.5
-    - gooey==1.0.0
-    - psutil==5.4.5
-    - wxpython==4.0.1
-prefix: /Users/genevieb/anaconda/envs/podo
-
+- python=3
+- pytest
+- pytest-cov
+- coverage
+- coveralls
+- flake8
+- pyinstaller
+- numpy
+- pandas
+- pims
+- scikit-image
+- pip:
+  - wxPython
+  - gooey
