@@ -14,6 +14,6 @@ dependencies:
 - pandas
 - pims
 - scikit-image
+- wxpython
 - pip:
-  - wxPython
   - gooey
