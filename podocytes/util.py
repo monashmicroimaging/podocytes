@@ -56,27 +56,27 @@ def configure_parser_default(parser):
     return parser
 
 
-def log_file_begins(args, timestamp):
+def log_file_begins(args):
     """Initialize logging and begin writing log file.
 
     Parameters
     ----------
     args : user input arguments
         Input arguments from user.
-    timestamp :  str
-        Local time as string formatted as day-month-year_hour-minute-AM/PM
-
+    
     Returns
     -------
     log_filename : str
         Filepath to output log text file location.
     """
-    log_filename = os.path.join(args.output_directory, f"log_podo_{timestamp}")
+    time_start = time.time()
+    timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
+    log_filename = os.path.join(args.output_directory, f"log_podo_{timestamp}.log")
     logging.basicConfig(
         format="%(asctime)s %(message)s",
         level=logging.DEBUG,
         handlers=[
-            logging.FileHandler(f"{log_filename}.log"),
+            logging.FileHandler(f"{log_filename}"),
             logging.StreamHandler()
         ])
     # Log user input arguments
@@ -87,4 +87,4 @@ def log_file_begins(args, timestamp):
     for key, val in user_input.items():
         logging.info(f"{key}: {val}")
     logging.info("======= END OF USER INPUT ARGUMENTS =======")
-    return log_filename
+    return time_start
