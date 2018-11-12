@@ -12,6 +12,7 @@ dependencies:
 - pyinstaller
 - numpy
 - pandas
+- jpype1
 - pims
 - scikit-image
 - wxpython
