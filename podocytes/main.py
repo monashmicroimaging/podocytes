@@ -82,8 +82,12 @@ def main():
     else:
         detailed_stats.to_csv(output_filename_detailed_stats)
         summary_stats = summarize_statistics(detailed_stats,
-                                             output_filename_summary_stats,
-                                             time_start)
+                                             output_filename_summary_stats)
+        if len(summary_stats) > 0:
+            total_gloms_counted = len(summary_stats)
+        else:
+            total_gloms_counted = 0
+        log_file_ends(time_start, total_gloms_counted)
 
 
 __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
@@ -123,17 +127,11 @@ def log_file_ends(time_start, total_gloms_counted):
     """
     time_end = time.time()
     time_delta = time_end - time_start
-    minutes, seconds = divmod(time_delta, 60)
-    hours, minutes = divmod(minutes, 60)
     logging.info(f'Total runtime: '
-                 f'{round(hours)} hours, '
-                 f'{round(minutes)} minutes, '
-                 f'{round(seconds)} seconds.')
+                 f'{round(time_delta)} seconds.')
     if total_gloms_counted > 0:
-        minutes_per_glom, seconds_per_glom = divmod(
-            time_delta / total_gloms_counted, 60)
+        seconds_per_glom = time_delta / total_gloms_counted
         logging.info(f'Average time per glomerulus: '
-                     f'{round(minutes_per_glom)} minutes, '
                      f'{round(seconds_per_glom)} seconds.')
     logging.info('Program complete.')
     return time_delta
