@@ -14,7 +14,8 @@ __all__ = ['crop_region_of_interest',
            'find_podocytes',
            'gradient_of_image',
            'marker_controlled_watershed',
-           'markers_from_blob_coords']
+           'markers_from_blob_coords',
+           'ground_truth_image']
 
 
 def crop_region_of_interest(image, bbox, margin=0, pad_mode='mean'):
@@ -235,3 +236,15 @@ def markers_from_blob_coords(blobs, image_shape):
     markers.ravel()[0] = True  # must have seed for background area
     markers = label(markers)
     return markers
+
+
+def ground_truth_image(ground_truth_coords, image_shape):
+    """Create label image where pixels labelled with int > 0 match
+       coordinates from xml cellcounter marker file.
+       (can also be used with coords from skimage blob_dog/blob_log/... function."""
+    image = np.zeros(image_shape).astype(np.int32)
+    for i, gt_coord in enumerate(ground_truth_coords):
+        coord = [slice(int(gt_coord[dim]), int(gt_coord[dim]) + 1, 1)
+                 for dim in range(image.ndim)]
+        image[coord] = i + 1  # only background pixels labelled zero.
+    return image

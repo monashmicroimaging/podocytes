@@ -63,7 +63,7 @@ def log_file_begins(args):
     ----------
     args : user input arguments
         Input arguments from user.
-    
+
     Returns
     -------
     log_filename : str
@@ -88,3 +88,31 @@ def log_file_begins(args):
         logging.info(f"{key}: {val}")
     logging.info("======= END OF USER INPUT ARGUMENTS =======")
     return time_start
+
+
+def log_file_ends(time_start, total_gloms_counted=None):
+    """Append runtime information to log.
+
+    Parameters
+    ----------
+    time_start : datetime
+        Datetime object from program start time.
+    total_gloms_counted : int
+        The number of glomeruli identified and analyzed.
+
+    Returns
+    -------
+    time_delta : datetime.timedelta
+        How long the program took to run.
+    """
+    time_end = time.time()
+    time_delta = time_end - time_start
+    minutes, seconds = divmod(time_delta, 60)
+    logging.info(f'Total runtime: '
+                 f'{round(time_delta)} seconds.')
+    if total_gloms_counted:
+        seconds_per_glom = time_delta / total_gloms_counted
+        logging.info(f'Average time per glomerulus: '
+                     f'{round(seconds_per_glom)} seconds.')
+    logging.info('Program complete.')
+    return time_delta
