@@ -22,7 +22,10 @@ from skimage.feature import blob_dog
 import tifffile._tifffile  # imported to silence pims warning
 
 from podocytes.__init__ import __version__
-from podocytes.util import configure_parser_default, log_file_begins, find_files
+from podocytes.util import (configure_parser_default,
+                            log_file_begins,
+                            log_file_ends,
+                            find_files)
 from podocytes.image_processing import (crop_region_of_interest,
                                         denoise_image,
                                         filter_by_size,
@@ -37,17 +40,12 @@ from podocytes.statistics import (glom_statistics,
                                   summarize_statistics)
 
 
-def main():
-    args = configure_parser()  # User input arguments
+def main(args):
+    time_start = log_file_begins(args)
     # User input arguments are expected to have 1-based indexing
     # we convert to 0-based indexing for the python program logic.
     channel_glomeruli = args.glomeruli_channel_number - 1
     channel_podocytes = args.podocyte_channel_number - 1
-
-    # Initialize
-    time_start = time.time()
-    timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
-    log_file_begins(args, timestamp)
 
     # Get to work
     stats_list = []
@@ -87,7 +85,7 @@ def main():
             total_gloms_counted = len(summary_stats)
         else:
             total_gloms_counted = 0
-        log_file_ends(time_start, total_gloms_counted)
+        log_file_ends(time_start, total_gloms_counted=total_gloms_counted)
 
 
 __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
@@ -106,35 +104,7 @@ def configure_parser():
     """
     parser = GooeyParser(prog='Podocyte Profiler', description=__DESCR__)
     parser = configure_parser_default(parser)
-    args = parser.parse_args()
-    return args
-
-
-def log_file_ends(time_start, total_gloms_counted):
-    """Append runtime information to log.
-
-    Parameters
-    ----------
-    time_start : datetime
-        Datetime object from program start time.
-    total_gloms_counted : int
-        The number of glomeruli identified and analyzed.
-
-    Returns
-    -------
-    time_delta : datetime.timedelta
-        How long the program took to run.
-    """
-    time_end = time.time()
-    time_delta = time_end - time_start
-    logging.info(f'Total runtime: '
-                 f'{round(time_delta)} seconds.')
-    if total_gloms_counted > 0:
-        seconds_per_glom = time_delta / total_gloms_counted
-        logging.info(f'Average time per glomerulus: '
-                     f'{round(seconds_per_glom)} seconds.')
-    logging.info('Program complete.')
-    return time_delta
+    return parser
 
 
 def process_image_series(images, filename, args):
@@ -199,4 +169,5 @@ def process_image_series(images, filename, args):
 
 
 if __name__ == '__main__':
-    main()
+    args = configure_parser()
+    main(args)
