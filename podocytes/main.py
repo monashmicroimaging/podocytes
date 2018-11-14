@@ -85,7 +85,7 @@ def main(args):
             total_gloms_counted = len(summary_stats)
         else:
             total_gloms_counted = 0
-        log_file_ends(time_start, total_gloms_counted=total_gloms_counted)
+    log_file_ends(time_start, total_gloms_counted=total_gloms_counted)
 
 
 __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
