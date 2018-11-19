@@ -10,6 +10,8 @@ dependencies:
 - coveralls
 - flake8
 - pyinstaller
+- jpype1
+- tifffile
 - numpy
 - pandas
 - scikit-image
