@@ -33,15 +33,9 @@ from podocytes.image_processing import (crop_region_of_interest,
 
 
 def main(args):
-    # User input arguments are expected to have 1-based indexing
-    # we convert to 0-based indexing for the python program logic.
-    channel_glomeruli = args.glomeruli_channel_number - 1
-    channel_podocytes = args.podocyte_channel_number - 1
-
     image_filenames = find_files(args.input_directory, args.file_extension)
     cellcounter_filenames = find_files(args.counts_directory, args.xml_extension)
     logging.info(f"Found {len(cellcounter_filenames)} xml count files. ")
-    logging.info(f"{cellcounter_filenames}")
     for xml_filename in cellcounter_filenames:
         xml_tree = ET.parse(xml_filename)
         xml_image_name = xml_tree.find('.//Image_Filename').text
@@ -127,22 +121,24 @@ def save_validation_output():
 
 
 def ground_truth(xml_tree, image_shape):
-    """
+    """Find ground truth dataframe and image from CellCounter xml tree.
 
     Parameters
     ----------
-    xml_tree :
+    xml_tree : xml tree from CellCounter file
+    image_shape : tuple, shape of image to match
 
     Returns
     -------
-    ground_truth_df :
-    ground_truth_img :
+    ground_truth :named tuple with ground_truth.dataframe, ground_truth.image
     """
     ground_truth_df = marker_coords(xml_tree, 2)
     columns = ['MarkerZ', 'MarkerY', 'MarkerX']
     ground_truth_img = ground_truth_image(ground_truth_df[columns].values,
                                           image_shape)
-    return ground_truth_df, ground_truth_img
+    ground_truth = collections.namedtuple("ground_truth",
+                                          ["dataframe", "image"])
+    return ground_truth(ground_truth_df, ground_truth_img)
 
 
 def open_matching_image(image_filenames, xml_image_name):
