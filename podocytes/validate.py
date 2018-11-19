@@ -68,8 +68,6 @@ def main(args):
             glomeruli_labels = find_glomeruli(glomeruli_view)
             output_filename_all_glom_labels = os.path.join(args.output_directory,
                 os.path.splitext(xml_image_name)[0] + "_all_glom_labels.tif")
-            io.imsave(output_filename_all_glom_labels,
-                      glomeruli_labels.astype(np.uint8))
             glom_regions = filter_by_size(glomeruli_labels,
                                           args.minimum_glomerular_diameter,
                                           args.maximum_glomerular_diameter)
