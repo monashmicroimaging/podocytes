@@ -10,7 +10,7 @@ try:
 except ImportError:
     import xml.etree.ElementTree as ET
 
-from podocytes.util import log_file_begins, find_files
+from podocytes.util import log_file_begins, find_files, marker_coords
 
 
 def main(args):

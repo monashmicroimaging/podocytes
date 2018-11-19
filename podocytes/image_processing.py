@@ -143,7 +143,8 @@ def find_glomeruli(glomeruli_view):
 
 
 def find_podocytes(podocyte_image, glomeruli_region,
-                   min_sigma=1, max_sigma=4, dog_threshold=0.17):
+                   min_sigma=1, max_sigma=4, dog_threshold=0.17,
+                   cropping_margin=10):
     """Identify podocytes in the image volume.
 
     Parameters
@@ -158,6 +159,8 @@ def find_podocytes(podocyte_image, glomeruli_region,
         Maximum sigma to find podocyte blobs using difference of gaussians.
     dog_threshold : float, optional
         Threshold value for difference of gaussian blob finding.
+    cropping_margin : int, optional
+        Margin in pixels for cropping around label region.
 
     Returns
     -------
@@ -169,7 +172,6 @@ def find_podocytes(podocyte_image, glomeruli_region,
         Watershed image showing podoyctes.
     """
     bbox = glomeruli_region.bbox  # bounding box coordinates
-    cropping_margin = 10  # pixels
     centroid_offset = tuple(bbox[dim] - cropping_margin
                             for dim in range(podocyte_image.ndim))
     image_roi = crop_region_of_interest(podocyte_image, bbox,

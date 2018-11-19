@@ -2,6 +2,8 @@ import os
 import time
 import logging
 
+import numpy as np
+import pandas as pd
 from gooey.python_bindings.gooey_decorator import Gooey as gooey
 from gooey.python_bindings.gooey_parser import GooeyParser
 
@@ -31,6 +33,22 @@ def find_files(input_directory, ext):
                 filename = os.path.join(root, f)
                 filelist.append(filename)
     return filelist
+
+
+def marker_coords(tree, n_channels):
+    """Parse CellCounter xml"""
+    df = pd.DataFrame()
+    image_name = tree.find('.//Image_Filename').text
+    for marker in tree.findall('.//Marker'):
+        x_coord = int(marker.find('MarkerX').text)
+        y_coord = int(marker.find('MarkerY').text)
+        z_coord = np.floor(int(marker.find('MarkerZ').text) / n_channels)
+        contents = {'Image_Filename': image_name,
+                    'MarkerX': x_coord,
+                    'MarkerY': y_coord,
+                    'MarkerZ': z_coord}
+        df = df.append(contents, ignore_index=True)
+    return df
 
 
 def configure_parser_default(parser):
