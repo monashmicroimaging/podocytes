@@ -104,7 +104,8 @@ def configure_parser():
     """
     parser = GooeyParser(prog='Podocyte Profiler', description=__DESCR__)
     parser = configure_parser_default(parser)
-    return parser
+    args = parse_args(parser)
+    return args
 
 
 def process_image_series(images, filename, args):

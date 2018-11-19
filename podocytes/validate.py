@@ -26,6 +26,7 @@ from skimage.feature import blob_dog
 
 from podocytes.__init__ import __version__
 from podocytes.util import (configure_parser_default,
+                            parse_args,
                             find_files,
                             marker_coords,
                             log_file_begins,
@@ -132,7 +133,7 @@ def configure_parser():
                         type=str, default='.xml')
     parser.add_argument('counts_directory', widget='DirChooser',
                         help='Folder containing Fiji CellCounter files.')
-    args = parser.parse_args()
+    args = parse_args(parser)
     return args
 
 

@@ -67,22 +67,6 @@ def process_folder(args):
     return counts
 
 
-def marker_coords(tree, n_channels):
-    """Parse CellCounter xml"""
-    df = pd.DataFrame()
-    image_name = tree.find('.//Image_Filename').text
-    for marker in tree.findall('.//Marker'):
-        x_coord = int(marker.find('MarkerX').text)
-        y_coord = int(marker.find('MarkerY').text)
-        z_coord = np.floor(int(marker.find('MarkerZ').text) / n_channels)
-        contents = {'Image_Filename': image_name,
-                    'MarkerX': x_coord,
-                    'MarkerY': y_coord,
-                    'MarkerZ': z_coord}
-        df = df.append(contents, ignore_index=True)
-    return df
-
-
 if __name__ == "__main__":
     parser = configure_parser()
     args = parser.parse_args()

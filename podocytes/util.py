@@ -35,22 +35,6 @@ def find_files(input_directory, ext):
     return filelist
 
 
-def marker_coords(tree, n_channels):
-    """Parse CellCounter xml"""
-    df = pd.DataFrame()
-    image_name = tree.find('.//Image_Filename').text
-    for marker in tree.findall('.//Marker'):
-        x_coord = int(marker.find('MarkerX').text)
-        y_coord = int(marker.find('MarkerY').text)
-        z_coord = np.floor(int(marker.find('MarkerZ').text) / n_channels)
-        contents = {'Image_Filename': image_name,
-                    'MarkerX': x_coord,
-                    'MarkerY': y_coord,
-                    'MarkerZ': z_coord}
-        df = df.append(contents, ignore_index=True)
-    return df
-
-
 def configure_parser_default(parser):
     parser.add_argument('input_directory', widget='DirChooser',
                         help='Folder containing files for processing.')
@@ -72,6 +56,28 @@ def configure_parser_default(parser):
                         help='Extension of image file format (.tif, etc.)',
                         type=str, default='.lif')
     return parser
+
+
+def parse_args(parser):
+    """Parse user input and return arguments.
+
+    Parameters
+    ----------
+    parser : argparse or Gooey parser object
+
+    Returns
+    -------
+    args : User input arguments
+
+    Notes
+    -----
+    User input arguments are expected to have 1-based indexing, so
+    we convert to 0-based indexing for the python program logic.
+    """
+    args = parser.parse_args()
+    args.glomeruli_channel_number = args.glomeruli_channel_number - 1
+    args.podocyte_channel_number = args.podocyte_channel_number - 1
+    return args
 
 
 def log_file_begins(args):
@@ -104,6 +110,9 @@ def log_file_begins(args):
     user_input = vars(args)
     for key, val in user_input.items():
         logging.info(f"{key}: {val}")
+    logging.info("NOTE: User input arguments for glomeruli_channel_number and "
+                 "glomeruli_channel_number have been converted here from "
+                 "1-based indexing to 0-based indexing for the program logic.")
     logging.info("======= END OF USER INPUT ARGUMENTS =======")
     return time_start
 
@@ -134,3 +143,19 @@ def log_file_ends(time_start, total_gloms_counted=None):
                      f'{round(seconds_per_glom)} seconds.')
     logging.info('Program complete.')
     return time_delta
+
+
+def marker_coords(tree, n_channels):
+    """Parse CellCounter xml"""
+    df = pd.DataFrame()
+    image_name = tree.find('.//Image_Filename').text
+    for marker in tree.findall('.//Marker'):
+        x_coord = int(marker.find('MarkerX').text)
+        y_coord = int(marker.find('MarkerY').text)
+        z_coord = np.floor(int(marker.find('MarkerZ').text) / n_channels)
+        contents = {'Image_Filename': image_name,
+                    'MarkerX': x_coord,
+                    'MarkerY': y_coord,
+                    'MarkerZ': z_coord}
+        df = df.append(contents, ignore_index=True)
+    return df
