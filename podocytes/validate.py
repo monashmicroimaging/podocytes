@@ -5,7 +5,7 @@ import logging
 import collections
 import numpy as np
 import pandas as pd
-import scipy.ndimage as ndi
+from skimage import io
 import matplotlib as mpl
 mpl.use('wxagg')
 import pims
@@ -13,16 +13,8 @@ try:
     import xml.etree.cElementTree as ET
 except ImportError:
     import xml.etree.ElementTree as ET
-
 from gooey.python_bindings.gooey_decorator import Gooey as gooey
 from gooey.python_bindings.gooey_parser import GooeyParser
-
-from skimage import io
-from skimage.util import invert
-from skimage.filters import threshold_otsu, threshold_yen, gaussian
-from skimage.morphology import ball, watershed, binary_closing, binary_dilation
-from skimage.measure import label, regionprops
-from skimage.feature import blob_dog
 
 from podocytes.__init__ import __version__
 from podocytes.util import (configure_parser_default,
@@ -37,8 +29,6 @@ from podocytes.image_processing import (crop_region_of_interest,
                                         find_glomeruli,
                                         find_podocytes,
                                         gradient_of_image,
-                                        marker_controlled_watershed,
-                                        markers_from_blob_coords,
                                         ground_truth_image)
 
 
@@ -57,57 +47,7 @@ def main(args):
         xml_image_name = xml_tree.find('.//Image_Filename').text
         image = open_matching_image(image_filenames, xml_image_name)
         if image is not None:
-            glomeruli_view = image[..., channel_glomeruli]
-            podocytes_view = image[..., channel_podocytes]
-
-            podocytes_view = denoise_image(podocytes_view)
-
-            ground_truth_df = marker_coords(xml_tree, 2)
-            spatial_columns = ['MarkerZ', 'MarkerY', 'MarkerX']
-            ground_truth_img = ground_truth_image(ground_truth_df[spatial_columns].values, glomeruli_view.shape)
-            glomeruli_labels = find_glomeruli(glomeruli_view)
-            output_filename_all_glom_labels = os.path.join(args.output_directory,
-                os.path.splitext(xml_image_name)[0] + "_all_glom_labels.tif")
-            glom_regions = filter_by_size(glomeruli_labels,
-                                          args.minimum_glomerular_diameter,
-                                          args.maximum_glomerular_diameter)
-            logging.info(f"{len(glom_regions)} glomeruli identified.")
-            logging.info(f"(glom_regions) - label of the selected glomerulus")
-            for glom in glom_regions:
-                cropping_margin = 10  # in pixels
-                centroid_offset = tuple(glom.bbox[dim] - cropping_margin
-                                        for dim in range(podocytes_view.ndim))
-                glom_subvolume, glom_subvolume_labels, gt_subvolume = \
-                    crop_all_images(glomeruli_view, glomeruli_labels, ground_truth_img, glom.bbox)
-
-                if np.sum(gt_subvolume) == 0:
-                    continue  # since these counts were not from this glomerulus
-
-                podocyte_regions, centroid_offset, wshed = \
-                        find_podocytes(podocytes_view, glom,
-                                       cropping_margin=cropping_margin)
-                ground_truth_bool = gt_subvolume.astype(np.bool)
-                result = wshed[ground_truth_bool]
-
-                ground_truth_podocyte_number = len(ground_truth_df)
-                found_label_set = set(wshed.ravel())
-                found_label_set.remove(0)  # excludes zero label
-                podocyte_number_found = len(found_label_set)
-
-                clicks_mask = (gt_subvolume > 0) * 255
-                glom_subvolume_mask = (glom_subvolume_labels > 0) * 255
-                output_image = np.stack([wshed.astype(np.uint8),
-                                         clicks_mask.astype(np.uint8),
-                                         (glom_subvolume * 255).astype(np.uint8),
-                                         glom_subvolume.astype(np.uint8),
-                                         glom_subvolume_mask.astype(np.uint8)],
-                                        axis=1
-                                        )  # ImageJ expects input in 'zcyx' format
-                output_image = np.expand_dims(output_image, 0)   # create empty time axis
-                output_fname = xml_image_name
-                output_fname = output_fname.replace(os.sep, '-')
-                output_fname = output_fname.replace('.', ' ')
-                io.imsave(os.path.join(args.output_directory, output_fname+f"_glom{glom.label}.tif"), output_image, imagej=True)
+            process_image(image, xml_tree, args)
 
 
 __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
@@ -133,6 +73,76 @@ def configure_parser():
                         help='Folder containing Fiji CellCounter files.')
     args = parse_args(parser)
     return args
+
+
+def process_image(image):
+    glomeruli_view = image[..., channel_glomeruli]
+    podocytes_view = image[..., channel_podocytes]
+    podocytes_view = denoise_image(podocytes_view)
+    glomeruli_labels = find_glomeruli(glomeruli_view)
+    glom_regions = filter_by_size(glomeruli_labels,
+                                  args.minimum_glomerular_diameter,
+                                  args.maximum_glomerular_diameter)
+    logging.info(f"{len(glom_regions)} glomeruli identified.")
+    logging.info(f"(glom_regions) - label of the selected glomerulus")
+    for glom in glom_regions:
+        process_glomeruli()
+
+
+def process_glomeruli():
+    cropping_margin = 10  # in pixels
+    centroid_offset = tuple(glom.bbox[dim] - cropping_margin
+                            for dim in range(podocytes_view.ndim))
+    glom_subvolume, glom_subvolume_labels, gt_subvolume = \
+        crop_all_images(glomeruli_view, glomeruli_labels, ground_truth_img, glom.bbox)
+    if np.sum(gt_subvolume) == 0:
+        return  # since these counts were not from this glomerulus
+    podocyte_regions, centroid_offset, wshed = \
+            find_podocytes(podocytes_view, glom,
+                           cropping_margin=cropping_margin)
+    ground_truth_bool = gt_subvolume.astype(np.bool)
+    result = wshed[ground_truth_bool]
+    ground_truth_podocyte_number = len(ground_truth_df)
+    found_label_set = set(wshed.ravel())
+    found_label_set.remove(0)  # excludes zero label
+    podocyte_number_found = len(found_label_set)
+    clicks_mask = (gt_subvolume > 0) * 255
+    glom_subvolume_mask = (glom_subvolume_labels > 0) * 255
+    save_validation_output()
+
+
+def save_validation_output():
+    output_image = np.stack([wshed.astype(np.uint8),
+                             clicks_mask.astype(np.uint8),
+                             (glom_subvolume * 255).astype(np.uint8),
+                             glom_subvolume.astype(np.uint8),
+                             glom_subvolume_mask.astype(np.uint8)],
+                            axis=1
+                            )  # ImageJ expects input in 'zcyx' format
+    output_image = np.expand_dims(output_image, 0)   # create empty time axis
+    output_fname = xml_image_name
+    output_fname = output_fname.replace(os.sep, '-')
+    output_fname = output_fname.replace('.', ' ')
+    io.imsave(os.path.join(args.output_directory, output_fname+f"_glom{glom.label}.tif"), output_image, imagej=True)
+
+
+def ground_truth(xml_tree, image_shape):
+    """
+
+    Parameters
+    ----------
+    xml_tree :
+
+    Returns
+    -------
+    ground_truth_df :
+    ground_truth_img :
+    """
+    ground_truth_df = marker_coords(xml_tree, 2)
+    columns = ['MarkerZ', 'MarkerY', 'MarkerX']
+    ground_truth_img = ground_truth_image(ground_truth_df[columns].values,
+                                          image_shape)
+    return ground_truth_df, ground_truth_img
 
 
 def open_matching_image(image_filenames, xml_image_name):
