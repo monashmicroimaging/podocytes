@@ -267,54 +267,6 @@ def more_logging(glom, ground_truth_podocyte_number, podocyte_number_found):
     logging.info(" ")
 
 
-def label_sets(wshed, gt_image):
-    found_label_set = set(wshed.ravel())
-    found_label_set.remove(0)  # excludes zero label
-    ground_truth_label_set = set(gt_image.ravel())
-    ground_truth_label_set.remove(0)  # excludes zero label
-    return found_label_set, ground_truth_label_set
-
-
-def assessment(wshed, gt_image, result):
-    found_label_set = set(wshed.ravel())
-    found_label_set.remove(0)  # excludes zero label
-    ground_truth_label_set = set(gt_image.ravel())
-    ground_truth_label_set.remove(0)  # excludes zero label
-    fancy_indexed_set = set(result)
-    click_but_no_label = list(ground_truth_label_set - fancy_indexed_set)
-    labels_with_zero_clicks = found_label_set - fancy_indexed_set
-    try:
-        labels_with_zero_clicks.remove(0)
-    except KeyError:
-        pass
-    finally:
-        labels_with_zero_clicks = list(labels_with_zero_clicks)
-
-    labels_with_one_click = [i for i, count in collections.Counter(result).items() if count == 1]
-    labels_with_multiple_clicks = [i for i, count in collections.Counter(result).items() if count > 1]
-
-    n_click_but_no_label = len(click_but_no_label)  # missed podocytes, should have found these
-    n_labels_with_zero_clicks = len(labels_with_zero_clicks)  # aren't supposed to exist
-    n_labels_with_one_click = len(labels_with_one_click)  # correctly identified
-    n_labels_with_multiple_clicks = len(labels_with_multiple_clicks)  # labels should be split up
-    logging.info(f"{n_click_but_no_label} - n_click_but_no_label, missed podocytes")
-    logging.info(f"{n_labels_with_zero_clicks} - n_labels_with_zero_clicks, aren't supposed to exist")
-    logging.info(f"{n_labels_with_one_click} - n_labels_with_one_click, correctly identified")
-    logging.info(f"{n_labels_with_multiple_clicks} - n_labels_with_multiple_clicks, labels should be split up")
-    logging.info(" ")
-    logging.info("click_but_no_label: (gt label numbering)")
-    logging.info(f"{click_but_no_label}")
-    logging.info("labels_with_zero_clicks:")
-    logging.info(f"{labels_with_zero_clicks}")
-    logging.info("labels_with_one_click:")
-    logging.info(f"{labels_with_one_click}")
-    logging.info("labels_with_multiple_clicks:")
-    logging.info(f"{labels_with_multiple_clicks}")
-    logging.info(" ")
-    logging.info(f"result = {result}")
-    logging.info(" ")
-
-
 if __name__=='__main__':
     args = configure_parser()  # User input arguments
     time_start = log_file_begins(args)
