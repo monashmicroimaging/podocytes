@@ -1,14 +1,11 @@
 import os
 import logging
+import xml.etree.ElementTree as ET
 
 import numpy as np
 import pandas as pd
 from gooey.python_bindings.gooey_decorator import Gooey as gooey
 from gooey.python_bindings.gooey_parser import GooeyParser
-try:
-    import xml.etree.cElementTree as ET
-except ImportError:
-    import xml.etree.ElementTree as ET
 
 from podocytes.util import log_file_begins, find_files, marker_coords
 

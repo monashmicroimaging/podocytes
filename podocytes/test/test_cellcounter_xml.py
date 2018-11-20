@@ -1,10 +1,6 @@
 import os
 import argparse
-
-try:
-    import xml.etree.cElementTree as ET
-except ImportError:
-    import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET
 
 from podocytes.cellcounter_xml import main, marker_coords
 
