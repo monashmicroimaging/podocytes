@@ -9,12 +9,11 @@ import pandas as pd
 from podocytes import validate
 
 
-def test_main():
+def test_main(tmpdir):
     input_image_dir = os.path.join(os.path.dirname(__file__), 'testdata')
     input_xml_dir = input_image_dir
-    output_dir = os.path.join(os.path.dirname(__file__), 'output/dir')
     args = argparse.Namespace(input_directory=input_image_dir,
-                              output_directory=output_dir,
+                              output_directory=tmpdir,
                               glomeruli_channel_number=0,
                               podocyte_channel_number=1,
                               minimum_glomerular_diameter=30.0,
@@ -40,16 +39,12 @@ def test_main():
                          86.65583147641911, 31.7051899795548,
                          expected_image_filename, expected_xml_filename]]
     expected = pd.DataFrame(expected_content, columns=column_names)
-    os.remove(os.path.join(os.path.dirname(__file__),
-                           'output/dir/51715_glom6_glomlabel1.tif'))
-    os.remove(os.path.join(output_dir, 'Podocyte_validation_stats.csv'))
     assert output.all().all() == expected.all().all()
 
 
-def test_validate_image():
-    output_dir = os.path.join(os.path.dirname(__file__), 'output/dir')
+def test_validate_image(tmpdir):
     args = argparse.Namespace(input_directory='testdata',
-                              output_directory=output_dir,
+                              output_directory=tmpdir,
                               glomeruli_channel_number=0,
                               podocyte_channel_number=1,
                               minimum_glomerular_diameter=30.0,
@@ -79,8 +74,6 @@ def test_validate_image():
                          86.65583147641911,
                          31.7051899795548]]
     expected = pd.DataFrame(expected_content, columns=column_names)
-    os.remove(os.path.join(os.path.dirname(__file__),
-                           'output/dir/51715_glom6_glomlabel1.tif'))
     assert output.all().all() == expected.all().all()
 
 

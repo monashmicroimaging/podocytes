@@ -5,19 +5,15 @@ import xml.etree.ElementTree as ET
 from podocytes.cellcounter_xml import main, marker_coords
 
 
-def test_main():
+def test_main(tmpdir):
     input_directory = os.path.join(os.path.dirname(__file__),
                                    'testdata')
-    output_directory = os.path.join(os.path.dirname(__file__),
-                                    'output/dir')
     args = argparse.Namespace(input_directory=input_directory,
-                              output_directory=output_directory,
+                              output_directory=tmpdir,
                               number_of_image_channels=2)
     counts = main(args)
     output = counts['n_podocytes'].iloc[0]
     expected = 48
-    os.remove(os.path.join(output_directory,
-                           'number_of_podocytes_from_markers.csv'))
     assert output == expected
 
 
