@@ -83,7 +83,7 @@ def configure_parser():
     return args
 
 
-def process_image(args, image, xml_tree, crop_margin=10):
+def process_image(args, image, xml_tree, cropping_margin=10):
     """Compare podocyte counts between Cellcounter xml and matching image.
 
     Parameters
@@ -91,7 +91,7 @@ def process_image(args, image, xml_tree, crop_margin=10):
     args : user input arguments
     image : image array
     xml_tree : xml tree of CellCounter marker file content
-    crop_margin : int, optional.
+    cropping_margin : int, optional.
         How many pixels for the margin around each glomerulus when cropping.
 
     Returns
@@ -117,11 +117,11 @@ def process_image(args, image, xml_tree, crop_margin=10):
                                        ground_truth.image,
                                        glomeruli_labels,
                                        glom.bbox,
-                                       cropping_margin=10)
+                                       cropping_margin=cropping_margin)
         # Check ground truth counts came from this particular glomerulus
         if np.sum(cropped.ground_truth_image) > 0:
             podocyte_regions, centroid_offset, watershed = find_podocytes(
-                podocytes_view, glom, cropping_margin=crop_margin)
+                podocytes_view, glom, cropping_margin=cropping_margin)
             podocyte_number_counted = count_podocytes_in_label_image(watershed)
             stats = comparison_statistics(glom,
                                           podocyte_number_ground_truth,
