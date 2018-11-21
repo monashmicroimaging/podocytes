@@ -94,7 +94,7 @@ def run_program(args):
 
 
 __DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
-             'fluorescence images.')
+             f'fluorescence images.\nVersion {__version__}')
 @gooey(default_size=(800, 700),
        image_dir=os.path.join(os.path.dirname(__file__), 'app-images'),
        navigation='TABBED')
