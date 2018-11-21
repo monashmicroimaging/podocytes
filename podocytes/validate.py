@@ -3,342 +3,406 @@ import sys
 import time
 import logging
 import collections
+import xml.etree.ElementTree as ET
+
 import numpy as np
 import pandas as pd
-import scipy.ndimage as ndi
+from skimage import io
 import matplotlib as mpl
 mpl.use('wxagg')
 import pims
-try:
-    import xml.etree.cElementTree as ET
-except ImportError:
-    import xml.etree.ElementTree as ET
+from gooey.python_bindings.gooey_decorator import Gooey as gooey
+from gooey.python_bindings.gooey_parser import GooeyParser
 
-from skimage import io
-from skimage.util import invert
-from skimage.filters import threshold_otsu, threshold_yen, gaussian
-from skimage.morphology import ball, watershed, binary_closing, binary_dilation
-from skimage.measure import label, regionprops
-from skimage.feature import blob_dog
+from podocytes.__init__ import __version__
+from podocytes.util import (configure_parser_default,
+                            parse_args,
+                            find_files,
+                            marker_coords,
+                            log_file_begins,
+                            log_file_ends)
+from podocytes.image_processing import (crop_region_of_interest,
+                                        denoise_image,
+                                        filter_by_size,
+                                        find_glomeruli,
+                                        find_podocytes,
+                                        gradient_of_image,
+                                        ground_truth_image)
 
-from main import preprocess_glomeruli, filter_by_size, \
-                 crop_region_of_interest, blob_dog_image, denoise_image, \
-                 gradient_of_image, marker_controlled_watershed
 
-def main():
-    # user input
-    input_counts_dir = "/Users/genevieb/Documents/ImageAnalysis/kidney_glomeruli/input_data/SP8/Postnatal21day_mice/markers_21daygloms/"
-    input_image_dir = "/Users/genevieb/Documents/ImageAnalysis/kidney_glomeruli/input_data/SP8/Postnatal21day_mice/input_files/"
-    output_dir = "/Users/genevieb/Documents/ImageAnalysis/kidney_glomeruli/input_data/SP8/Postnatal21day_mice/input_files/output_27June2018/validate//"
-    image_filename = os.path.join(input_image_dir, "51571 and 51575.lif")
-    channel_glomeruli = 0
-    channel_podocytes = 1
-    min_glom_diameter = 30
-    max_glom_diameter = 300
-
-    # Initialize logging and begin writing log file.
-    timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
-    print(timestamp)
-    log_filename = os.path.join(output_dir, f"log_validate_{timestamp}")
-    logging.basicConfig(
-        format="%(asctime)s %(message)s",
-        level=logging.DEBUG,
-        handlers=[
-            logging.FileHandler(f"{log_filename}.log"),
-            logging.StreamHandler()
-        ])
-
-    # images
-    images = pims.open(image_filename)
-    logging.info(f"Processing file: {image_filename}")
-
-    # CellCounter xml
-    cellcounter_filelist = find_all_count_files(input_counts_dir)
-    logging.info(f"Found {len(cellcounter_filelist)} xml count files. ")
-    logging.info(f"{cellcounter_filelist}")
-    for xml_filename in cellcounter_filelist:
+def main(args):
+    """Compare podocyte counts between software and CellCounter markers."""
+    image_filenames = find_files(args.input_directory,
+                                 args.file_extension)
+    cellcounter_filenames = find_files(args.counts_directory,
+                                       args.xml_extension)
+    logging.info(f"Found {len(cellcounter_filenames)} xml count files. ")
+    all_statistics = []
+    for xml_filename in cellcounter_filenames:
         xml_tree = ET.parse(xml_filename)
         xml_image_name = xml_tree.find('.//Image_Filename').text
+        filename, image = open_matching_image(image_filenames, xml_image_name)
+        if image is not None:
+            image_validation_stats = validate_image(args, image, xml_tree)
+            image_validation_stats['image_filename'] = filename
+            image_validation_stats['xml_filename'] = xml_filename
+            all_statistics.append(image_validation_stats)
+    try:
+        podocyte_comparison_stats = pd.concat(all_statistics,
+                                              ignore_index=True, copy=False)
+        output_csv_filename = os.path.join(args.output_directory,
+                                           'Podocyte_validation_stats.csv')
+        podocyte_comparison_stats.to_csv(output_csv_filename)
+    except ValueError as err:
+        logging.warning("Empty list can't be concatenated.")
+        logging.warning(f'{str(type(err))[8:-2]}: {err}')
+    else:
+        return podocyte_comparison_stats
 
-        image_series_index = match_names(images,
-                                         xml_image_name,
-                                         os.path.basename(image_filename)
-                                         )
-        if image_series_index == None:
-            logging.info("No matching image series found!")
+
+__DESCR__ = ('Compare podocyte counts between software and CellCounter files.')
+@gooey(default_size=(800, 700),
+       image_dir=os.path.join(os.path.dirname(__file__), 'app-images'),
+       navigation='TABBED')
+def configure_parser():
+    """Configure parser and add user input arguments.
+
+    Returns
+    -------
+    args : argparse arguments
+        Parsed user input arguments.
+    """
+    parser = GooeyParser(prog='Podocyte Profiler', description=__DESCR__)
+    parser = configure_parser_default(parser)
+    parser.add_argument('xml_extension',
+                        help='Extension of image file format (.xml)',
+                        type=str, default='.xml')
+    parser.add_argument('counts_directory', widget='DirChooser',
+                        help='Folder containing Fiji CellCounter files.')
+    args = parse_args(parser)
+    return args
+
+
+def validate_image(args, image, xml_tree, cropping_margin=10):
+    """Compare podocyte counts between Cellcounter xml and matching image.
+
+    Parameters
+    ----------
+    args : user input arguments
+    image : image array
+    xml_tree : xml tree of CellCounter marker file content
+    cropping_margin : int, optional.
+        How many pixels for the margin around each glomerulus when cropping.
+
+    Returns
+    -------
+    image_validation_stats : pandas dataframe with comparison of podocyte counts.
+    """
+    # Ground truth from Cellcounter xml file
+    image_shape = image[..., args.podocyte_channel_number].shape
+    ground_truth = cellcounter_ground_truth(xml_tree, image_shape)
+    podocyte_number_ground_truth = len(ground_truth.dataframe)
+    # Find glomeruli in the image ourselves
+    glomeruli_labels = find_glomeruli(image[..., args.glomeruli_channel_number])
+    glom_regions = filter_by_size(glomeruli_labels,
+                                  args.minimum_glomerular_diameter,
+                                  args.maximum_glomerular_diameter)
+    logging.info(f"{len(glom_regions)} glomeruli identified.")
+    # Count the podocytes
+    podocytes_view = denoise_image(image[..., args.podocyte_channel_number])
+    single_image_stats = []
+    for glom in glom_regions:
+        cropped = crop_multiple_images(args,
+                                       image,
+                                       ground_truth.image,
+                                       glomeruli_labels,
+                                       glom.bbox,
+                                       cropping_margin=cropping_margin)
+        # Check ground truth counts came from this particular glomerulus
+        # Eg: multiple glomeruli can exist in one image, but we may only
+        # have annotations for one of them.
+        if np.sum(cropped.ground_truth_image) > 0:
+            podocyte_regions, centroid_offset, watershed = find_podocytes(
+                podocytes_view, glom, cropping_margin=cropping_margin)
+            podocyte_number_counted = count_podocytes_in_label_image(watershed)
+            stats = comparison_statistics(glom,
+                                          podocyte_number_ground_truth,
+                                          podocyte_number_counted)
+            single_image_stats.append(stats)
+            filename_output_image = save_validation_images(args,
+                                                           watershed,
+                                                           cropped,
+                                                           xml_tree,
+                                                           glom)
+        else:
+            logging.info("CellCounter markers don't match this glomerulus.")
             continue
+    try:
+        image_validation_stats = pd.concat(single_image_stats,
+                                           ignore_index=True, copy=False)
+    except ValueError as err:
+        logging.warning("Empty list can't be concatenated.")
+        logging.warning(f'{str(type(err))[8:-2]}: {err}')
+    else:
+        return image_validation_stats
+
+
+def comparison_statistics(glom_region,
+                          podocyte_number_ground_truth,
+                          podocyte_number_counted):
+    """Create DataFrame with single glomerulus podocyte count comparison.
+
+    Parameters
+    ----------
+    glom_region : skimage regionprops object representing the glomerulus.
+    podocyte_number_ground_truth : number of podocytes in CellCounter xml file.
+    podocyte_number_counted : number of podocytes counted by this software.
+
+    Returns
+    -------
+    stats : pandas dataframe with single glomerulus podocyte count comparison.
+    """
+    column_names = ['n_podocytes_ground_truth',
+                    'n_podocytes_found',
+                    'difference_in_podocyte_number',
+                    'gleom_label',
+                    'glom_centroid_x',
+                    'glom_centroid_y',
+                    'glom_centroid_z']
+    difference = podocyte_number_ground_truth - podocyte_number_counted
+    content = [[podocyte_number_ground_truth,
+               podocyte_number_counted,
+               difference,
+               glom_region.label,
+               glom_region.centroid[2],
+               glom_region.centroid[1],
+               glom_region.centroid[0]]]
+    stats = pd.DataFrame(content, columns=column_names)
+    return stats
+
+
+def count_podocytes_in_label_image(label_image):
+    """Count number of podocytes in label image.
+
+    Parameters
+    ----------
+    label_image : Label image of podocyte regions in single glomerulus.
+
+    Returns
+    -------
+    podocyte_number : int
+        Number of podocytes in the label image.
+    """
+    label_set = set(label_image.ravel())
+    label_set.remove(0)  # excludes zero label
+    podocyte_number = len(label_set)
+    return podocyte_number
+
+
+def save_validation_images(args, podocyte_watershed, cropped,
+                           xml_tree, glom):
+    """Save multichannel output validation image.
+
+    Parameters
+    ----------
+    args : user input arguments
+    podocyte_watershed : 3D watershed image showing podoyctes.
+    cropped : Named tuple containing cropped.ground_truth_image,
+        cropped.podoyctes_image, cropped.glomerulus_image,
+        and cropped.glomerulus_labels.
+    xml_tree : xml tree from CellCounter file
+
+    Returns
+    -------
+    output_fname : filename where output validation images are saved.
+    """
+    cellcounter_clicks = (cropped.ground_truth_image > 0) * 255
+    glomerulus_mask = (cropped.glomerulus_labels > 0) * 255
+    # ImageJ expects input in 'zcyx' format
+    output_image = np.stack([podocyte_watershed.astype(np.uint8),
+                             cellcounter_clicks.astype(np.uint8),
+                             cropped.podoyctes_image.astype(np.uint8),
+                             cropped.glomerulus_image.astype(np.uint8),
+                             glomerulus_mask.astype(np.uint8)], axis=1)
+    output_image = np.expand_dims(output_image, 0)   # create empty time axis
+    output_fname = xml_tree.find('.//Image_Filename').text
+    output_fname = output_fname.replace(args.file_extension, '')
+    output_fname = output_fname.replace(os.sep, '-')
+    output_fname = output_fname.replace('.', ' ')
+    io.imsave(os.path.join(args.output_directory,
+                           output_fname + f"_glomlabel{glom.label}.tif"),
+              output_image, imagej=True)
+    return output_fname
+
+
+def cellcounter_ground_truth(xml_tree, image_shape):
+    """Find ground truth dataframe and image from CellCounter xml tree.
+
+    Parameters
+    ----------
+    xml_tree : xml tree from CellCounter file
+    image_shape : tuple, shape of image to match
+
+    Returns
+    -------
+    ground_truth :named tuple with ground_truth.dataframe, ground_truth.image
+    """
+    ground_truth_dataframe = marker_coords(xml_tree, 2)
+    columns = ['MarkerZ', 'MarkerY', 'MarkerX']
+    ground_truth_img = ground_truth_image(
+        ground_truth_dataframe[columns].values, image_shape)
+    ground_truth = collections.namedtuple("ground_truth",
+                                          ["dataframe", "image"])
+    return ground_truth(ground_truth_dataframe, ground_truth_img)
+
+
+def open_matching_image(image_filenames, xml_image_name):
+    """Find image matching CellCounter xml file and return opened image.
+
+    Parameters
+    ----------
+    image_filenames : list of str
+        List of all image filesnames to search for match.
+    xml_image_name : str
+        Name to match, recorded in CellCounter xml file.
+
+    Returns
+    -------
+    images[0] : pims image object
+    """
+    filename = match_filenames(image_filenames, xml_image_name)
+    if filename:
+        images = pims.Bioformats(filename)
+        image_series_index = match_image_index(images,
+                                               xml_image_name,
+                                               os.path.basename(filename))
+        if image_series_index is None:
+            logging.info("No matching image series found.")
+            return None
         logging.info(f"{images.metadata.ImageID(image_series_index)}")
         logging.info(f"{images.metadata.ImageName(image_series_index)}")
         images.series = image_series_index
         images.bundle_axes = 'zyxc'
-        glomeruli_view = images[0][..., channel_glomeruli]
-        podocytes_view = images[0][..., channel_podocytes]
-
-        ground_truth_df = marker_coords(xml_tree, 2)
-        spatial_columns = ['MarkerZ', 'MarkerY', 'MarkerX']
-        gt_image = ground_truth_image(ground_truth_df[spatial_columns].values,
-                                      glomeruli_view.shape)
-
-        glomeruli_labels = preprocess_glomeruli(glomeruli_view)
-        io.imsave(os.path.join(output_dir, output_fname+f"_Glomeruli_Labels.tif"), glomeruli_labels, imagej=True)
-        glom_regions = filter_by_size(glomeruli_labels,
-                                      min_glom_diameter,
-                                      max_glom_diameter)
-        #io.imsave(os.path.join(output_dir, "glomeruli_labels.tif"), glomeruli_labels)
-        logging.info(f"{len(glom_regions)} glomeruli identified.")
-        for glom in glom_regions:
-            bbox = glom.bbox
-            cropping_margin = 10  # pixels
-            centroid_offset = tuple(bbox[dim] - cropping_margin
-                                    for dim in range(podocytes_view.ndim))
-            glom_subvolume = crop_region_of_interest(glomeruli_view,
-                                                     bbox,
-                                                     margin=cropping_margin,
-                                                     pad_mode='mean')
-            glom_subvolume_labels = crop_region_of_interest(glomeruli_labels,
-                                                            bbox,
-                                                            margin=cropping_margin,
-                                                            pad_mode='zeros')
-            gt_subvolume = crop_region_of_interest(gt_image,
-                                                   bbox,
-                                                   margin=cropping_margin,
-                                                   pad_mode='zeros')
-            if np.sum(gt_subvolume) == 0:
-                # the counts were not from this glomerulus
-                continue
-            podocytes_view = denoise_image(podocytes_view)
-            podo_subvolume = crop_region_of_interest(podocytes_view,
-                                                   bbox,
-                                                   margin=cropping_margin,
-                                                   pad_mode='mean')
-            threshold = threshold_otsu(podo_subvolume)
-            mask = podo_subvolume > threshold
-            blobs = blob_dog(podo_subvolume,
-                             min_sigma=1,
-                             max_sigma=4,
-                             threshold=0.17)
-            wshed = marker_controlled_watershed(podo_subvolume, blobs)
-            ground_truth_bool = gt_subvolume.astype(np.bool)
-            result = wshed[ground_truth_bool]
-
-            found_label_set = set(wshed.ravel())
-            found_label_set.remove(0)  # excludes zero label
-            ground_truth_label_set = set(gt_image.ravel())
-            ground_truth_label_set.remove(0)  # excludes zero label
-            fancy_indexed_set = set(result)
-
-            ground_truth_podocyte_number = len(ground_truth_df)
-            podocyte_number_found = len(found_label_set)
-            logging.info(f"ground_truth_podocyte_number: {ground_truth_podocyte_number}")
-            logging.info(f"podocyte_number_found: {podocyte_number_found}")
-            logging.info(f"difference: {podocyte_number_found - ground_truth_podocyte_number}")
-            logging.info(" ")
-            logging.info(f"Glom label: {glom.label}")
-            logging.info(f"Glom centroid: {glom.centroid}")
-            logging.info(f"Glom bbox: {glom.bbox}")
-            logging.info(" ")
-            click_but_no_label = list(ground_truth_label_set - fancy_indexed_set)
-            labels_with_zero_clicks = found_label_set - fancy_indexed_set
-            try:
-                labels_with_zero_clicks.remove(0)
-            except KeyError:
-                pass
-            finally:
-                labels_with_zero_clicks = list(labels_with_zero_clicks)
-
-            labels_with_one_click = [i for i, count in collections.Counter(result).items() if count == 1]
-            labels_with_multiple_clicks = [i for i, count in collections.Counter(result).items() if count > 1]
-
-            n_click_but_no_label = len(click_but_no_label)  # missed podocytes, should have found these
-            n_labels_with_zero_clicks = len(labels_with_zero_clicks)  # aren't supposed to exist
-            n_labels_with_one_click = len(labels_with_one_click)  # correctly identified
-            n_labels_with_multiple_clicks = len(labels_with_multiple_clicks)  # labels should be split up
-            logging.info(f"{n_click_but_no_label} - n_click_but_no_label, missed podocytes")
-            logging.info(f"{n_labels_with_zero_clicks} - n_labels_with_zero_clicks, aren't supposed to exist")
-            logging.info(f"{n_labels_with_one_click} - n_labels_with_one_click, correctly identified")
-            logging.info(f"{n_labels_with_multiple_clicks} - n_labels_with_multiple_clicks, labels should be split up")
-
-            logging.info(" ")
-            logging.info("click_but_no_label: (gt label numbering)")
-            logging.info(f"{click_but_no_label}")
-            logging.info("labels_with_zero_clicks:")
-            logging.info(f"{labels_with_zero_clicks}")
-            logging.info("labels_with_one_click:")
-            logging.info(f"{labels_with_one_click}")
-            logging.info("labels_with_multiple_clicks:")
-            logging.info(f"{labels_with_multiple_clicks}")
-            logging.info(" ")
-            logging.info(f"result = {result}")
-            logging.info(" ")
-
-            clicks_mask = (gt_subvolume > 0) * 255
-            glom_subvolume_mask = (glom_subvolume_labels > 0) * 255
-            output_image = np.stack([wshed.astype(np.uint8),
-                                     clicks_mask.astype(np.uint8),
-                                     (podo_subvolume * 255).astype(np.uint8),
-                                     glom_subvolume.astype(np.uint8),
-                                     glom_subvolume_mask.astype(np.uint8)],
-                                    axis=1
-                                    )  # ImageJ expects input in 'zcyx' format
-            output_image = np.expand_dims(output_image, 0)   # create empty time axis
-            output_fname = xml_image_name
-            output_fname = output_fname.replace(os.sep, '-')
-            output_fname = output_fname.replace('.', ' ')
-            io.imsave(os.path.join(output_dir, output_fname+f"_glom{glom.label}.tif"), output_image, imagej=True)
-
-    logging.info("Program finished.")
+        return filename, images[0]
+    else:
+        logging.info("No matching image found.")
+        return None, None
 
 
-def find_all_count_files(input_directory):
-    filelist = []
-    for root, _, files in os.walk(input_directory):
-        for file in files:
-            if file.endswith('.xml'):
-                filename = os.path.join(root, file)
-                filelist.append(filename)
-    return filelist
+def match_filenames(image_filenames, xml_image_name):
+    """Match correct image filename for a given CellCounter xml file.
 
+    Parameters
+    ----------
+    image_filenames : list of str
+        List of all image filesnames to search for match.
+    xml_image_name : str
+        Name to match, recorded in CellCounter xml file.
 
-def match_names(images, xml_image_name, basename):
-    n_image_series = images.metadata.ImageCount()
-    for i in range(n_image_series):
-        images.series = i
-        name = images.metadata.ImageName(i)
-        full_name = basename + " - " + name
-        if xml_image_name == full_name:
-            return i
-    # if no match found
+    Returns
+    -------
+    filename : str
+        Image filename matching CellCounter xml file.
+    """
+    for filename in image_filenames:
+        if os.path.basename(filename) in xml_image_name:
+            return filename
     return None
 
 
-def marker_coords(tree, n_channels):
-    """Parse CellCounter xml"""
-    df = pd.DataFrame()
-    image_name = tree.find('.//Image_Filename').text
-    for marker in tree.findall('.//Marker'):
-        x_coord = int(marker.find('MarkerX').text)
-        y_coord = int(marker.find('MarkerY').text)
-        z_coord = np.floor(int(marker.find('MarkerZ').text) / n_channels)
-        contents = {'Image_Filename': image_name,
-                    'MarkerX': x_coord,
-                    'MarkerY': y_coord,
-                    'MarkerZ': z_coord}
-        df = df.append(contents, ignore_index=True)
-    return df
+def match_image_index(images, xml_image_name, basename):
+    """Match image series index number for a given CellCounter xml file.
+
+    Parameters
+    ----------
+    images : pims image object, where images[0] is the image ndarray.
+        Input image plus metadata.
+    xml_image_name : string
+    basename : string
+
+    Returns
+    -------
+    image_index : int
+    """
+    if xml_image_name == basename:
+        image_index = 0
+        return image_index  # file has only one image series which matches.
+    else:
+        n_image_series = images.metadata.ImageCount()
+        for image_index in range(n_image_series):
+            images.series = image_index
+            name = images.metadata.ImageName(image_index)
+            multi_series_name = basename + " - " + name
+            if xml_image_name == name:
+                return image_index  # return index of matching image
+            elif xml_image_name == multi_series_name:
+                return image_index  # return index of matching image
+            else:
+                return None  # no match found
 
 
-def ground_truth_image(ground_truth_coords, image_shape):
-    """Create label image where pixels labelled with int > 0 match
-       coordinates from skimage blob_dog/blob_log/... function."""
-    image = np.zeros(image_shape).astype(np.int32)
-    for i, gt_coord in enumerate(ground_truth_coords):
-        coord = [slice(int(gt_coord[dim]), int(gt_coord[dim]) + 1, 1)
-                 for dim in range(image.ndim)]
-        image[coord] = i + 1  # only background pixels labelled zero.
-    return image
+def crop_multiple_images(args,
+                         whole_image,
+                         whole_ground_truth_image,
+                         whole_glomeruli_labels,
+                         bounding_box,
+                         cropping_margin=10):
+    """Crop multiple input images to the same dimensions, return named tuple.
 
+    Parameters
+    ----------
+    args : User input arguments
+    whole_image : grayscale image of whole image
+    whole_ground_truth_image :
+    whole_glomeruli_labels : label image of glomeruli regions, filtered by size
+    bounding_box : tuple
+        Bounding box coordinates as tuple.
+        Returned from scikit-image regionprops bbox attribute. Format is:
+        3D example (min_pln, min_row, min_col, max_pln, max_row, max_col)
+        2D example (min_row, min_col, max_row, max_col)
+        Pixels belonging to the bounding box are in the half-open interval.
+    cropping_margin : int, optional.
+        How many pixels to increase the size of the bounding box by.
+        If this margin exceeds the input image array bounds,
+        then the output image is padded.
 
-def fix_whitespace(xml_string):
-    """Format according to the weird whitespace
-       conventions that CellCounter uses."""
-    # add the CellCounter header line
-    formatted_xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + xml_string
-    # change whitespace
-    # children
-    formatted_xml = formatted_xml.replace("  <Image_Properties>",
-                                          " <Image_Properties>"
-                                          )
-    formatted_xml = formatted_xml.replace("  </Image_Properties>",
-                                          " </Image_Properties>"
-                                          )
-    formatted_xml = formatted_xml.replace("  <Marker_Data>",
-                                          " <Marker_Data>"
-                                          )
-    formatted_xml = formatted_xml.replace("  </Marker_Data>",
-                                          " </Marker_Data>"
-                                          )
-    # grandchildren
-    formatted_xml = formatted_xml.replace("    <Image_Filename>",
-                                          "     <Image_Filename>"
-                                          )
-    formatted_xml = formatted_xml.replace("    <Current_Type>",
-                                          "     <Current_Type>"
-                                          )
-    formatted_xml = formatted_xml.replace("    <Marker_Type>",
-                                          "     <Marker_Type>"
-                                          )
-    formatted_xml = formatted_xml.replace("    </Marker_Type>",
-                                          "     </Marker_Type>"
-                                          )
-    # great grandchildren
-    formatted_xml = formatted_xml.replace("      <Marker>",
-                                          "         <Marker>"
-                                          )
-    formatted_xml = formatted_xml.replace("      </Marker>",
-                                          "         </Marker>"
-                                          )
-    # great great grandchildren
-    formatted_xml = formatted_xml.replace("        <MarkerX>",
-                                          "             <MarkerX>"
-                                          )
-    formatted_xml = formatted_xml.replace("        </MarkerX>",
-                                          "             </MarkerX>"
-                                          )
-    formatted_xml = formatted_xml.replace("        <MarkerY>",
-                                          "             <MarkerY>"
-                                          )
-    formatted_xml = formatted_xml.replace("        </MarkerY>",
-                                          "             </MarkerY>"
-                                          )
-    formatted_xml = formatted_xml.replace("        <MarkerZ>",
-                                          "             <MarkerZ>"
-                                          )
-    formatted_xml = formatted_xml.replace("        </MarkerZ>",
-                                          "             </MarkerZ>"
-                                          )
-    return formatted_xml
-
-
-def generate_xml(coord_df):
-    # root
-    new_xml = etree.Element('CellCounter_Marker_File')
-    # Image Properties
-    Image_Properties = etree.Element('Image_Properties')
-    new_xml.append(Image_Properties)
-    Image_Filename = etree.Element('Image_Filename')
-    Image_Filename.text = str(coord_df['Image_Filename'][0])
-    Image_Properties.append(Image_Filename)
-    # Marker Data
-    Marker_Data = etree.Element('Marker_Data')
-    new_xml.append(Marker_Data)
-    Current_Type = etree.Element('Current_Type')
-    Current_Type.text = '0'
-    Marker_Data.append(Current_Type)
-    # marker types
-    Marker_Type = etree.Element('Marker_Type')
-    Marker_Data.append(Marker_Type)
-    n_marker_types = 9
-    for i in range(1, n_marker_types+1):
-        Type = etree.Element('Type')
-        Type.text = str(i)
-        Marker_Type.append(Type)
-    for index, row in coord_df.iterrows():
-        Marker = etree.Element('Marker')
-        Marker_Type.append(Marker)
-        MarkerX = etree.Element('MarkerX')
-        MarkerY = etree.Element('MarkerY')
-        MarkerZ = etree.Element('MarkerZ')
-        MarkerX.text = str(int(row['MarkerX']))
-        MarkerY.text = str(int(row['MarkerY']))
-        MarkerZ.text = str(int(row['MarkerZ']))
-        Marker.append(MarkerX)
-        Marker.append(MarkerY)
-        Marker.append(MarkerZ)
-    # pretty string
-    xml_string = etree.tostring(new_xml, pretty_print=True)
-    formatted_xml_string = fix_whitespace(xml_string)
-    return formatted_xml_string
+    Returns
+    -------
+    cropped : Named tuple containing cropped.ground_truth_image,
+        cropped.podoyctes_image, cropped.glomerulus_image,
+        and cropped.glomerulus_labels.
+    """
+    whole_glomeruli_view = whole_image[..., args.glomeruli_channel_number]
+    whole_podocytes_view = whole_image[..., args.podocyte_channel_number]
+    ground_truth_image = crop_region_of_interest(whole_ground_truth_image,
+                                                 bounding_box,
+                                                 margin=cropping_margin,
+                                                 pad_mode='zeros')
+    podoyctes_image = crop_region_of_interest(whole_podocytes_view,
+                                              bounding_box,
+                                              margin=cropping_margin,
+                                              pad_mode='mean')
+    glomeruli_image = crop_region_of_interest(whole_glomeruli_view,
+                                              bounding_box,
+                                              margin=cropping_margin,
+                                              pad_mode='mean')
+    glomeruli_labels = crop_region_of_interest(whole_glomeruli_labels,
+                                               bounding_box,
+                                               margin=cropping_margin,
+                                               pad_mode='zeros')
+    cropped = collections.namedtuple("cropped", ["ground_truth_image",
+                                                 "podoyctes_image",
+                                                 "glomerulus_image",
+                                                 "glomerulus_labels"])
+    cropped_image_tuple = cropped(ground_truth_image,
+                                  podoyctes_image,
+                                  glomeruli_image,
+                                  glomeruli_labels)
+    return cropped_image_tuple
 
 
 if __name__=='__main__':
-    main()
+    args = configure_parser()  # User input arguments
+    time_start = log_file_begins(args)
+    main(args)
+    log_file_ends(time_start)

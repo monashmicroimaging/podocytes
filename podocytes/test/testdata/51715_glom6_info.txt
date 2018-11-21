@@ -1,0 +1,12 @@
+mouse_number                51715
+glomeulus_number                6
+Podocyte_counts_Natasha        50
+Podocyte_counts_Sarah          48
+Podocyte_counts_James          48
+Podocyte_counts_software       48
+
+51715, LPD, female, STZ, 24 weeks old
+LPD = low protein diet
+STZ = Streptozotocin (a drug that induces diabetes)
+
+The corresponding marker file is from Sarah G.
