@@ -121,11 +121,11 @@ exe = EXE(pyz,
           gooey_languages,
           gooey_images,
           name='Podo',
-          debug=True,
+          debug=False,
           strip=False,
           upx=True,
           runtime_tmpdir=None,
-          console=True)
+          console=False)
 app = BUNDLE(exe,
              name='Podo.app',
              icon=None,
