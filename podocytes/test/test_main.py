@@ -15,8 +15,8 @@ class TestMain(object):
         images.bundle_axes = 'zyxc'
         args = argparse.Namespace(input_directory='/test/input/dir',
                                   output_directory='/test/output/dir',
-                                  glomeruli_channel_number=1,
-                                  podocyte_channel_number=2,
+                                  glomeruli_channel_number=0,
+                                  podocyte_channel_number=1,
                                   minimum_glomerular_diameter=30.0,
                                   maximum_glomerular_diameter=300.0,
                                   file_extension='.tif')

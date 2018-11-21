@@ -24,6 +24,7 @@ import tifffile._tifffile  # imported to silence pims warning
 
 from podocytes.__init__ import __version__
 from podocytes.util import (configure_parser_default,
+                            parse_args,
                             log_file_begins,
                             log_file_ends,
                             find_files)
@@ -41,12 +42,14 @@ from podocytes.statistics import (glom_statistics,
                                   summarize_statistics)
 
 
-def main(args):
+def main():
+    args = configure_parser()
+    run_program(args)
+
+
+def run_program(args):
     time_start = log_file_begins(args)
-    # User input arguments are expected to have 1-based indexing
-    # we convert to 0-based indexing for the python program logic.
-    channel_glomeruli = args.glomeruli_channel_number - 1
-    channel_podocytes = args.podocyte_channel_number - 1
+    timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
 
     # Get to work
     stats_list = []
@@ -69,17 +72,17 @@ def main(args):
             single_image_stats = process_image_series(images, filename, args)
             stats_list.append(single_image_stats)
     # Summarize output and write to file
-    output_filename_detailed_stats = os.path.join(args.output_directory,
-            'Podocyte_detailed_stats_' + timestamp + '.csv')
-    output_filename_summary_stats = os.path.join(args.output_directory,
-            'Podocyte_summary_stats_' + timestamp + '.csv')
     try:
         detailed_stats = pd.concat(stats_list, ignore_index=True, copy=False)
     except ValueError as err:
-        logging.warning(f'No glomeruli identified in this image.')
+        logging.warning(f'No glomeruli identified in these images.')
         logging.warning(f'{str(type(err))[8:-2]}: {err}')
         return None
     else:
+        output_filename_detailed_stats = os.path.join(args.output_directory,
+                'Podocyte_detailed_stats_' + timestamp + '.csv')
+        output_filename_summary_stats = os.path.join(args.output_directory,
+                'Podocyte_summary_stats_' + timestamp + '.csv')
         detailed_stats.to_csv(output_filename_detailed_stats)
         summary_stats = summarize_statistics(detailed_stats,
                                              output_filename_summary_stats)
@@ -127,22 +130,20 @@ def process_image_series(images, filename, args):
 
     """
     df_list = []
-    # User input arguments are expected to have 1-based indesxing
-    # we convert to 0-based indexing for the python program logic.
-    channel_glomeruli = args.glomeruli_channel_number - 1
-    channel_podocytes = args.podocyte_channel_number - 1
+    glomeruli_view = images[0][..., args.glomeruli_channel_number]
+    podocytes_view = images[0][..., args.podocyte_channel_number]
     voxel_volume = images[0].metadata['mpp'] * \
                    images[0].metadata['mpp'] * \
                    images[0].metadata['mppZ']
     logging.info(f"Voxel volume in real space: {voxel_volume}")
-    glomeruli_labels = find_glomeruli(images[0][..., channel_glomeruli])
+    glomeruli_labels = find_glomeruli(glomeruli_view)
     glom_regions = filter_by_size(glomeruli_labels,
                                   args.minimum_glomerular_diameter,
                                   args.maximum_glomerular_diameter)
-    glom_index = 0  # glom labels will not always be sequential after filtering by size
+    glom_index = 0  # labels not always sequential after filtering by size
     logging.info(f"{len(glom_regions)} glomeruli identified.")
     if len(glom_regions) > 0:
-        podocytes_view = denoise_image(images[0][..., channel_podocytes])
+        podocytes_view = denoise_image(podocytes_view)
         for glom in glom_regions:
             podocyte_regions, centroid_offset, wshed = \
                     find_podocytes(podocytes_view, glom)
@@ -172,5 +173,4 @@ def process_image_series(images, filename, args):
 
 
 if __name__ == '__main__':
-    args = configure_parser()
-    main(args)
+    main()

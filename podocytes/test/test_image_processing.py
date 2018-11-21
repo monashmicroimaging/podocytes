@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import pims
 import numpy as np
@@ -17,9 +19,20 @@ blank_image = np.zeros((128, 128, 128))
 def open_test_image():
     fname = 'testdata/51715_glom6.tif'
     filename = os.path.join(os.path.dirname(__file__), fname)
-    images = pims.open(filename)
+    images = pims.Bioformats(filename)
     images.bundle_axes = 'zyxc'
     return images[0]
+
+
+class TestFindGlomeruli(object):
+    def test_find_glomeruli(self):
+        image = open_test_image()
+        glomeruli_view = image[..., 0]
+        label_image = find_glomeruli(glomeruli_view)
+        glomeruli_regions = filter_by_size(label_image, 30.0, 300.0)
+        output = len(glomeruli_regions)
+        expected = 1
+        assert output == expected
 
 
 class TestCropRegionOfInterest(object):

@@ -43,10 +43,10 @@ def main(args):
         xml_image_name = xml_tree.find('.//Image_Filename').text
         filename, image = open_matching_image(image_filenames, xml_image_name)
         if image is not None:
-            single_image_stats = process_image(args, image, xml_tree)
-            single_image_stats['image_filename'] = filename
-            single_image_stats['xml_filename'] = xml_filename
-            all_statistics.append(single_image_stats)
+            image_validation_stats = validate_image(args, image, xml_tree)
+            image_validation_stats['image_filename'] = filename
+            image_validation_stats['xml_filename'] = xml_filename
+            all_statistics.append(image_validation_stats)
     try:
         podocyte_comparison_stats = pd.concat(all_statistics,
                                               ignore_index=True, copy=False)
@@ -83,7 +83,7 @@ def configure_parser():
     return args
 
 
-def process_image(args, image, xml_tree, cropping_margin=10):
+def validate_image(args, image, xml_tree, cropping_margin=10):
     """Compare podocyte counts between Cellcounter xml and matching image.
 
     Parameters
@@ -96,7 +96,7 @@ def process_image(args, image, xml_tree, cropping_margin=10):
 
     Returns
     -------
-    single_image_stats : pandas dataframe with comparison of podocyte counts.
+    image_validation_stats : pandas dataframe with comparison of podocyte counts.
     """
     # Ground truth from Cellcounter xml file
     image_shape = image[..., args.podocyte_channel_number].shape
@@ -119,6 +119,8 @@ def process_image(args, image, xml_tree, cropping_margin=10):
                                        glom.bbox,
                                        cropping_margin=cropping_margin)
         # Check ground truth counts came from this particular glomerulus
+        # Eg: multiple glomeruli can exist in one image, but we may only
+        # have annotations for one of them.
         if np.sum(cropped.ground_truth_image) > 0:
             podocyte_regions, centroid_offset, watershed = find_podocytes(
                 podocytes_view, glom, cropping_margin=cropping_margin)
@@ -136,13 +138,13 @@ def process_image(args, image, xml_tree, cropping_margin=10):
             logging.info("CellCounter markers don't match this glomerulus.")
             continue
     try:
-        single_image_stats = pd.concat(single_image_stats,
-                                       ignore_index=True, copy=False)
+        image_validation_stats = pd.concat(single_image_stats,
+                                           ignore_index=True, copy=False)
     except ValueError as err:
         logging.warning("Empty list can't be concatenated.")
         logging.warning(f'{str(type(err))[8:-2]}: {err}')
     else:
-        return single_image_stats
+        return image_validation_stats
 
 
 def comparison_statistics(glom_region,
@@ -284,7 +286,7 @@ def open_matching_image(image_filenames, xml_image_name):
         return filename, images[0]
     else:
         logging.info("No matching image found.")
-        return None
+        return None, None
 
 
 def match_filenames(image_filenames, xml_image_name):
