@@ -2,6 +2,8 @@
 import os.path
 import PyInstaller.utils.hooks
 
+from podocytes._version import __version_loci_tools__
+
 spec_root = os.path.abspath(SPECPATH)
 
 # Get gooey data files
@@ -14,7 +16,7 @@ gooey_images = Tree(os.path.join(gooey_root, 'images'), prefix='gooey/images')
 
 # Get loci_tools.jar; ensure it's packaged in a.binaries, below
 from pims import bioformats
-loci_jar_full_path = bioformats._download_jar(version='5.9.2')
+loci_jar_full_path = bioformats._download_jar(version=__version_loci_tools__)
 
 block_cipher = None
 
