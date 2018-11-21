@@ -49,9 +49,9 @@ def crop_region_of_interest(image, bbox, margin=0, pad_mode='mean'):
     bbox_max_plus_margin = np.array([coord + margin for coord in bbox[ndims:]])
     image_min_coords = bbox_min_plus_margin.clip(min=0)
     image_max_coords = bbox_max_plus_margin.clip(max=max_image_size)
-    max_roi_size = np.array([abs(bbox_max_plus_margin[dim] -
-                                 bbox_min_plus_margin[dim])
-                             for dim in range(ndims)])
+    max_roi_size = np.array([
+        abs(bbox_max_plus_margin[dim] - bbox_min_plus_margin[dim])
+        for dim in range(ndims)])
     roi_min_coord = abs(image_min_coords - bbox_min_plus_margin)
     roi_max_coord = max_roi_size - abs(bbox_max_plus_margin - image_max_coords)
     image_slicer = tuple(slice(image_min_coords[dim], image_max_coords[dim], 1)
@@ -117,9 +117,9 @@ def filter_by_size(label_image, min_diameter, max_diameter):
     """
     regions = []
     for region in regionprops(label_image):
-        if ((region.equivalent_diameter >= min_diameter) and
-                (region.equivalent_diameter <= max_diameter)):
-            regions.append(region)
+        if ((region.equivalent_diameter >= min_diameter):
+            if (region.equivalent_diameter <= max_diameter)):
+                regions.append(region)
     return regions
 
 
@@ -143,8 +143,7 @@ def find_glomeruli(glomeruli_view):
 
 
 def find_podocytes(podocyte_image, glomeruli_region,
-                   min_sigma=1, max_sigma=4, dog_threshold=0.17,
-                   cropping_margin=10):
+                   min_sigma=1, max_sigma=4, dog_threshold=0.17):
     """Identify podocytes in the image volume.
 
     Parameters
@@ -159,8 +158,6 @@ def find_podocytes(podocyte_image, glomeruli_region,
         Maximum sigma to find podocyte blobs using difference of gaussians.
     dog_threshold : float, optional
         Threshold value for difference of gaussian blob finding.
-    cropping_margin : int, optional
-        Margin in pixels for cropping around label region.
 
     Returns
     -------
@@ -172,6 +169,7 @@ def find_podocytes(podocyte_image, glomeruli_region,
         Watershed image showing podoyctes.
     """
     bbox = glomeruli_region.bbox  # bounding box coordinates
+    cropping_margin = 10  # pixels
     centroid_offset = tuple(bbox[dim] - cropping_margin
                             for dim in range(podocyte_image.ndim))
     image_roi = crop_region_of_interest(podocyte_image, bbox,
@@ -241,9 +239,21 @@ def markers_from_blob_coords(blobs, image_shape):
 
 
 def ground_truth_image(ground_truth_coords, image_shape):
-    """Create label image where pixels labelled with int > 0 match
-       coordinates from xml cellcounter marker file.
-       (can also be used with coords from skimage blob_dog/blob_log/... function."""
+    """Label image from coordinates in CellCounter xml marker file.
+
+    Creates a label image where pixels labelled with int > 0 match
+    coordinates from xml cellcounter marker file.
+    Can also be used with coords from skimage blob_dog/blob_log/blob_doh.
+
+    Parameters
+    ----------
+    ground_truth_coords :  array where first columns are x, y, and z coords.
+    image_shape : shape of image, eg: img_array.shape
+
+    Returns
+    -------
+    image : label image
+    """
     image = np.zeros(image_shape).astype(np.int32)
     for i, gt_coord in enumerate(ground_truth_coords):
         coord = [slice(int(gt_coord[dim]), int(gt_coord[dim]) + 1, 1)

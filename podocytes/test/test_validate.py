@@ -42,7 +42,7 @@ class TestValidate(object):
                              expected_image_filename, expected_xml_filename]]
         expected = pd.DataFrame(expected_content, columns=column_names)
         os.remove(os.path.join(os.path.dirname(__file__),
-                   'output/dir/51715_glom6_glomlabel1.tif'))
+                               'output/dir/51715_glom6_glomlabel1.tif'))
         os.remove(os.path.join(output_dir, 'Podocyte_validation_stats.csv'))
         assert output.all().all() == expected.all().all()
 
@@ -74,11 +74,13 @@ class TestValidate(object):
                         'glom_centroid_x',
                         'glom_centroid_y',
                         'glom_centroid_z']
-        expected_content = [[48, 48, 0, 1, 107.91522420803565, 86.65583147641911,
-                     31.7051899795548]]
+        expected_content = [[48, 48, 0, 1,
+                             107.91522420803565,
+                             86.65583147641911,
+                             31.7051899795548]]
         expected = pd.DataFrame(expected_content, columns=column_names)
         os.remove(os.path.join(os.path.dirname(__file__),
-                  'output/dir/51715_glom6_glomlabel1.tif'))
+                               'output/dir/51715_glom6_glomlabel1.tif'))
         assert output.all().all() == expected.all().all()
 
     def test_count_podocytes_in_label_image(self):

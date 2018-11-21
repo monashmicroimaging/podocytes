@@ -64,8 +64,7 @@ def podocyte_statistics(podocyte_regions, centroid_offset, voxel_volume):
                     'podocyte_centroid_z']
     contents_list = []
     for pod in podocyte_regions:
-        real_podocyte_centroid = tuple(pod.centroid[dim] +
-                                       centroid_offset[dim]
+        real_podocyte_centroid = tuple(pod.centroid[dim] + centroid_offset[dim]
                                        for dim in range(len(pod.centroid)))
         # Add interesting statistics to the dataframe
         # Centroid coords are (x, y, z) and NOT (plane, row, column)
@@ -101,7 +100,8 @@ def podocyte_avg_statistics(df):
     """
     df['avg_podocyte_voxel_number'] = np.mean(df['podocyte_voxel_number'])
     df['avg_podocyte_volume'] = np.mean(df['podocyte_volume'])
-    df['avg_podocyte_equiv_diam_pixels'] = np.mean(df['podocyte_equiv_diam_pixels'])
+    df['avg_podocyte_equiv_diam_pixels'] = \
+        np.mean(df['podocyte_equiv_diam_pixels'])
     return df
 
 

@@ -9,6 +9,7 @@ from gooey.python_bindings.gooey_parser import GooeyParser
 from podocytes import __version__
 from podocytes.util import find_files, configure_parser_default
 
+
 class TestUtil(object):
     def test_find_files(self):
         output = find_files('testdata/findfiles/', '.txt').sort()

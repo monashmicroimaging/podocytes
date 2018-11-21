@@ -95,7 +95,8 @@ def log_file_begins(args):
     """
     time_start = time.time()
     timestamp = time.strftime('%d-%b-%Y_%H-%M%p', time.localtime())
-    log_filename = os.path.join(args.output_directory, f"log_podo_{timestamp}.log")
+    log_filename = os.path.join(args.output_directory,
+                                f"log_podo_{timestamp}.log")
     logging.basicConfig(
         format="%(asctime)s %(message)s",
         level=logging.DEBUG,

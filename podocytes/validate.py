@@ -31,8 +31,11 @@ from podocytes.image_processing import (crop_region_of_interest,
 
 
 def main(args):
-    image_filenames = find_files(args.input_directory, args.file_extension)
-    cellcounter_filenames = find_files(args.counts_directory, args.xml_extension)
+    """Compare podocyte counts between software and CellCounter markers."""
+    image_filenames = find_files(args.input_directory,
+                                 args.file_extension)
+    cellcounter_filenames = find_files(args.counts_directory,
+                                       args.xml_extension)
     logging.info(f"Found {len(cellcounter_filenames)} xml count files. ")
     all_statistics = []
     for xml_filename in cellcounter_filenames:
@@ -48,7 +51,7 @@ def main(args):
         podocyte_comparison_stats = pd.concat(all_statistics,
                                               ignore_index=True, copy=False)
         output_csv_filename = os.path.join(args.output_directory,
-            'Podocyte_validation_stats.csv')
+                                           'Podocyte_validation_stats.csv')
         podocyte_comparison_stats.to_csv(output_csv_filename)
     except ValueError as err:
         logging.warning("Empty list can't be concatenated.")
@@ -57,9 +60,7 @@ def main(args):
         return podocyte_comparison_stats
 
 
-
-__DESCR__ = ('Load, segment, count, and measure glomeruli and podocytes in '
-             'fluorescence images.')
+__DESCR__ = ('Compare podocyte counts between software and CellCounter files.')
 @gooey(default_size=(800, 700),
        image_dir=os.path.join(os.path.dirname(__file__), 'app-images'),
        navigation='TABBED')
@@ -70,7 +71,6 @@ def configure_parser():
     -------
     args : argparse arguments
         Parsed user input arguments.
-
     """
     parser = GooeyParser(prog='Podocyte Profiler', description=__DESCR__)
     parser = configure_parser_default(parser)
@@ -84,7 +84,20 @@ def configure_parser():
 
 
 def process_image(args, image, xml_tree, crop_margin=10):
-    """"""
+    """Compare podocyte counts between Cellcounter xml and matching image.
+
+    Parameters
+    ----------
+    args : user input arguments
+    image : image array
+    xml_tree : xml tree of CellCounter marker file content
+    crop_margin : int, optional.
+        How many pixels for the margin around each glomerulus when cropping.
+
+    Returns
+    -------
+    single_image_stats : pandas dataframe with comparison of podocyte counts.
+    """
     # Ground truth from Cellcounter xml file
     image_shape = image[..., args.podocyte_channel_number].shape
     ground_truth = cellcounter_ground_truth(xml_tree, image_shape)
@@ -111,19 +124,20 @@ def process_image(args, image, xml_tree, crop_margin=10):
                 podocytes_view, glom, cropping_margin=crop_margin)
             podocyte_number_counted = count_podocytes_in_label_image(watershed)
             stats = comparison_statistics(glom,
-                podocyte_number_ground_truth, podocyte_number_counted)
+                                          podocyte_number_ground_truth,
+                                          podocyte_number_counted)
             single_image_stats.append(stats)
             filename_output_image = save_validation_images(args,
-                                                          watershed,
-                                                          cropped,
-                                                          xml_tree,
-                                                          glom)
+                                                           watershed,
+                                                           cropped,
+                                                           xml_tree,
+                                                           glom)
         else:
             logging.info("CellCounter markers don't match this glomerulus.")
             continue
     try:
         single_image_stats = pd.concat(single_image_stats,
-                                              ignore_index=True, copy=False)
+                                       ignore_index=True, copy=False)
     except ValueError as err:
         logging.warning("Empty list can't be concatenated.")
         logging.warning(f'{str(type(err))[8:-2]}: {err}')
@@ -134,6 +148,18 @@ def process_image(args, image, xml_tree, crop_margin=10):
 def comparison_statistics(glom_region,
                           podocyte_number_ground_truth,
                           podocyte_number_counted):
+    """Create DataFrame with single glomerulus podocyte count comparison.
+
+    Parameters
+    ----------
+    glom_region : skimage regionprops object representing the glomerulus.
+    podocyte_number_ground_truth : number of podocytes in CellCounter xml file.
+    podocyte_number_counted : number of podocytes counted by this software.
+
+    Returns
+    -------
+    stats : pandas dataframe with single glomerulus podocyte count comparison.
+    """
     column_names = ['n_podocytes_ground_truth',
                     'n_podocytes_found',
                     'difference_in_podocyte_number',
@@ -153,8 +179,19 @@ def comparison_statistics(glom_region,
     return stats
 
 
-def count_podocytes_in_label_image(watershed_image):
-    label_set = set(watershed_image.ravel())
+def count_podocytes_in_label_image(label_image):
+    """Count number of podocytes in label image.
+
+    Parameters
+    ----------
+    label_image : Label image of podocyte regions in single glomerulus.
+
+    Returns
+    -------
+    podocyte_number : int
+        Number of podocytes in the label image.
+    """
+    label_set = set(label_image.ravel())
     label_set.remove(0)  # excludes zero label
     podocyte_number = len(label_set)
     return podocyte_number
@@ -162,7 +199,7 @@ def count_podocytes_in_label_image(watershed_image):
 
 def save_validation_images(args, podocyte_watershed, cropped,
                            xml_tree, glom):
-    """
+    """Save multichannel output validation image.
 
     Parameters
     ----------
@@ -231,21 +268,20 @@ def open_matching_image(image_filenames, xml_image_name):
     -------
     images[0] : pims image object
     """
-    image_filename = match_filenames(image_filenames, xml_image_name)
-    if image_filename:
-        images = pims.Bioformats(image_filename)
+    filename = match_filenames(image_filenames, xml_image_name)
+    if filename:
+        images = pims.Bioformats(filename)
         image_series_index = match_image_index(images,
-                                              xml_image_name,
-                                              os.path.basename(image_filename)
-                                              )
-        if image_series_index == None:
-           logging.info("No matching image series found.")
-           return None
+                                               xml_image_name,
+                                               os.path.basename(filename))
+        if image_series_index is None:
+            logging.info("No matching image series found.")
+            return None
         logging.info(f"{images.metadata.ImageID(image_series_index)}")
         logging.info(f"{images.metadata.ImageName(image_series_index)}")
         images.series = image_series_index
         images.bundle_axes = 'zyxc'
-        return image_filename, images[0]
+        return filename, images[0]
     else:
         logging.info("No matching image found.")
         return None

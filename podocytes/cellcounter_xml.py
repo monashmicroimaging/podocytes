@@ -11,8 +11,10 @@ from podocytes.util import log_file_begins, find_files, marker_coords
 
 
 def main(args):
+    """Count the number of markers in CellCounter xml files."""
     counts = process_folder(args)
-    counts.to_csv(os.path.join(args.output_directory, "number_of_podocytes_from_markers.csv"))
+    counts.to_csv(os.path.join(args.output_directory,
+                               "number_of_podocytes_from_markers.csv"))
     return counts
 
 
@@ -40,17 +42,23 @@ def configure_parser():
 
 
 def process_folder(args):
-    """
+    """Count number of markers recorded in all CellCounter xml files.
+
     Parameters
     ----------
     args : user input arguments
 
     Returns
     -------
-    counts :
+    counts : pandas dataframe with summarized results from CellCounter xml.
     """
     marker_files = find_files(args.input_directory, '.xml')
     contents = []
+    column_names = ['filename',
+                    'xml_image_name',
+                    'mouse',
+                    'glom_id',
+                    'n_podocytes']
     for xml_filename in marker_files:
         mouse = os.path.basename(os.path.dirname(xml_filename))
         glom_id = os.path.splitext(os.path.basename(xml_filename))[0][-2:]
@@ -58,9 +66,14 @@ def process_folder(args):
         xml_image_name = xml_tree.find('.//Image_Filename').text
         markers = marker_coords(xml_tree, args.number_of_image_channels)
         n_podocytes = len(markers)
-        logging.info(f"{n_podocytes} markers counted from file: {xml_filename}")
-        contents.append([xml_filename, xml_image_name, mouse, glom_id, n_podocytes])
-    counts = pd.DataFrame(contents, columns=['filename', 'xml_image_name', 'mouse', 'glom_id', 'n_podocytes'])
+        logging.info(f"{n_podocytes} markers counted from file: "
+                     f"{xml_filename}")
+        contents.append([xml_filename,
+                         xml_image_name,
+                         mouse,
+                         glom_id,
+                         n_podocytes])
+    counts = pd.DataFrame(contents, columns=column_names)
     return counts
 
 

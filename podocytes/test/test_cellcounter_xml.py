@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 
 from podocytes.cellcounter_xml import main, marker_coords
 
+
 class TestMarkerXML(object):
     def test_main(self):
         input_directory = os.path.join(os.path.dirname(__file__),
