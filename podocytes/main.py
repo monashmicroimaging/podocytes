@@ -8,6 +8,7 @@ import matplotlib as mpl
 mpl.use('wxagg')
 from skimage import io
 import pims
+import jpype
 import matplotlib.pyplot as plt
 
 from gooey.python_bindings.gooey_decorator import Gooey as gooey
@@ -50,6 +51,7 @@ def main(args):
     # Get to work
     stats_list = []
     filelist = find_files(args.input_directory, args.file_extension)
+    logging.info(f"Java path: {jpype.get_default_jvm_path()}")
     logging.info(f"{len(filelist)} {args.file_extension} files found.")
     for filename in filelist:
         logging.info(f"Processing file: {filename}")

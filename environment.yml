@@ -10,11 +10,12 @@ dependencies:
 - coveralls
 - flake8
 - pyinstaller
+- jpype1
+- tifffile
 - numpy
 - pandas
-- jpype1
-- pims
 - scikit-image
 - wxpython
 - pip:
   - gooey
+  - git+https://github.com/soft-matter/pims
