@@ -7,7 +7,7 @@
 
 ### Install Podo
 * Download [Podo.app.zip](https://github.com/monashmicroimaging/podocytes/releases/tag/v0.2.0)
-(currently available only for Mac)
+(currently available only for MacOS Mojave)
 
 Unzip the file, then move the app to /Applications/
 
